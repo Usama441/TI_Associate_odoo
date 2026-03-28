@@ -829,6 +829,7 @@ class AuditReport(models.TransientModel):
             'subcontractor services': 'Subcontractors',
             'entertainment expense': 'Entertainment',
             'entertainment expenses': 'Entertainment',
+            'client entertainment': 'Entertainment',
             'business insurance': 'Insurance expense',
             'business insurance expense': 'Insurance expense',
             'business insurance expenses': 'Insurance expense',
