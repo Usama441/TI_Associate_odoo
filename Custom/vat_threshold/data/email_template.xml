@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Email Template for VAT Registration Notification -->
+    <record id="email_template_vat_register" model="mail.template">
+        <field name="name">VAT Threshold Notification - register</field>
+        <field name="model_id" ref="model_vat_threshold"/>
+        <field name="subject">VAT Registration Required - {{ object.company_id.name }}</field>
+        <field name="email_from">{{ user.email }}</field>
+        <field name="email_to">{{ object.company_id.email }}</field>
+        <field name="body_html" type="html">
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2 style="color: #875A7B;">VAT Registration Required</h2>
+                <p>Dear <t t-out="object.company_id.name"/>,</p>
+                <p>This is an automated notification regarding your VAT registration status.</p>
+                <br/>
+                <p>Based on our analysis of your revenue records, your company has exceeded the mandatory VAT registration threshold.</p>
+                <br/>
+                <table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Company:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;"><t t-out="object.company_id.name"/></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Total Revenue:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;"><t t-out="object.total_sales"/> AED</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Threshold Limit:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">375,000 AED</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Current VAT Status:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Not Registered</td>
+                    </tr>
+                </table>
+                <br/>
+                <p style="color: #d9534f;"><strong>Action Required:</strong> Your company is required to register for VAT as your annual revenue has exceeded the mandatory threshold of 375,000 AED.</p>
+                <br/>
+                <p>Please contact the Federal Tax Authority (FTA) to complete your VAT registration at your earliest convenience.</p>
+                <br/>
+                <p>Best regards,</p>
+                <p>System Administrator</p>
+            </div>
+        </field>
+        <field name="lang">{{ object.company_id.partner_id.lang }}</field>
+        <field name="auto_delete" eval="False"/>
+    </record>
+
+    <!-- Email Template for VAT Cancellation Notification -->
+    <record id="email_template_vat_cancel" model="mail.template">
+        <field name="name">VAT Threshold Notification - cancel</field>
+        <field name="model_id" ref="model_vat_threshold"/>
+        <field name="subject">VAT Registration Cancellation Notice - {{ object.company_id.name }}</field>
+        <field name="email_from">{{ user.email }}</field>
+        <field name="email_to">{{ object.company_id.email }}</field>
+        <field name="body_html" type="html">
+            <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2 style="color: #875A7B;">VAT Registration Cancellation Notice</h2>
+                <p>Dear <t t-out="object.company_id.name"/>,</p>
+                <p>This is an automated notification regarding your VAT registration status.</p>
+                <br/>
+                <p>Based on our analysis of your revenue records, your company's revenue has fallen below the mandatory VAT registration threshold.</p>
+                <br/>
+                <table style="border-collapse: collapse; width: 100%; max-width: 500px;">
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Company:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;"><t t-out="object.company_id.name"/></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Total Revenue:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;"><t t-out="object.total_sales"/> AED</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Threshold Limit:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">125,000 AED</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd; background-color: #f5f5f5;"><strong>Current VAT Status:</strong></td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Registered</td>
+                    </tr>
+                </table>
+                <br/>
+                <p style="color: #0275d8;"><strong>Information:</strong> Your company's annual revenue is below 125,000 AED. You may be eligible to cancel your VAT registration if this trend continues.</p>
+                <br/>
+                <p>Please review your business situation and contact the Federal Tax Authority (FTA) if you wish to proceed with VAT cancellation.</p>
+                <br/>
+                <p>Best regards,</p>
+                <p>System Administrator</p>
+            </div>
+        </field>
+        <field name="lang">{{ object.company_id.partner_id.lang }}</field>
+        <field name="auto_delete" eval="False"/>
+    </record>
+</odoo>

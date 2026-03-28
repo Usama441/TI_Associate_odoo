@@ -1,0 +1,428 @@
+.o_ui_feature_banner {
+    background-color: var(--o-view-background-color, var(--o-gray-100));
+    color: var(--o-main-text-color, inherit);
+    border-bottom: 1px solid var(--border-color, var(--o-gray-300));
+    text-align: center;
+    font-weight: 500;
+}
+
+.o_ui_feature_theme_default {
+    .o_main_navbar {
+        border-bottom: 1px solid var(--border-color, var(--o-gray-300));
+    }
+}
+
+.o_ui_feature_theme_compact {
+    .o_main_navbar {
+        min-height: 40px;
+    }
+
+    .o_form_view .o_group .o_td_label,
+    .o_form_view .o_field_widget,
+    .o_list_renderer td,
+    .o_list_renderer th {
+        padding-top: 0.2rem;
+        padding-bottom: 0.2rem;
+    }
+}
+
+.o_ui_feature_theme_contrast {
+    .o_main_navbar,
+    .o_control_panel {
+        background-color: var(--o-gray-100);
+    }
+
+    .o_form_view,
+    .o_list_renderer {
+        background-color: var(--o-gray-200);
+    }
+
+    .o_content,
+    .o_action_manager {
+        filter: contrast(1.06);
+    }
+}
+
+.o_ui_feature_theme_ramadan {
+    --o-main-text-color: var(--o-white);
+    --o-webclient-background-color: var(--o-black);
+    --o-view-background-color: var(--o-gray-900);
+    --border-color: rgba(255, 193, 7, 0.35);
+    --o-input-border-color: rgba(255, 193, 7, 0.45);
+    --bs-body-color: var(--o-white);
+    --bs-body-bg: var(--o-black);
+    --bs-border-color: rgba(255, 193, 7, 0.35);
+    --bs-link-color: var(--warning);
+    --bs-link-hover-color: var(--warning);
+
+    --homeMenu-bg-color: var(--o-black);
+    --homeMenu-bg-image:
+        radial-gradient(circle at 14% 16%, rgba(255, 193, 7, 0.28) 0 9%, transparent 10%),
+        radial-gradient(circle at 78% 22%, rgba(255, 193, 7, 0.2) 0 7%, transparent 8%),
+        radial-gradient(circle at 52% 78%, rgba(255, 193, 7, 0.16) 0 6%, transparent 7%),
+        linear-gradient(140deg, var(--o-black) 0%, var(--o-gray-900) 45%, var(--o-black) 100%);
+    --homeMenuCaption-color: var(--warning);
+
+    &, .o_web_client {
+        background-color: var(--o-black);
+        color: var(--o-white);
+    }
+
+    .o_action_manager,
+    .o_content,
+    .o_form_view,
+    .o_list_renderer,
+    .o_kanban_view,
+    .o_calendar_view,
+    .o_search_panel,
+    .o_searchview,
+    .o_renderer {
+        background-color: var(--o-gray-900);
+        color: var(--o-white);
+    }
+
+    .o_form_view,
+    .o_list_renderer,
+    .o_kanban_renderer,
+    .o_kanban_record,
+    .o-notebook,
+    .dropdown-menu,
+    .modal-content,
+    .popover,
+    .tooltip-inner,
+    .o_control_panel,
+    .o_cp_action_menus,
+    .o-search-panel,
+    .o_search_panel,
+    .o_setting_container,
+    .o_settings_container,
+    .o_settings,
+    .o_field_widget,
+    .o_input,
+    .form-control,
+    .form-select {
+        background-color: var(--o-gray-900) !important;
+        color: var(--o-white) !important;
+        border-color: rgba(255, 193, 7, 0.35) !important;
+    }
+
+    .o_list_table,
+    .o_list_table thead,
+    .o_list_table tbody,
+    .o_list_table tfoot,
+    .o_list_table th,
+    .o_list_table td,
+    .table,
+    .table th,
+    .table td {
+        background-color: var(--o-gray-900) !important;
+        color: var(--o-white) !important;
+        border-color: rgba(255, 193, 7, 0.25) !important;
+    }
+
+    .o_main_navbar,
+    .o_control_panel,
+    .o_burger_menu,
+    .o_menu_systray,
+    .o-dropdown,
+    .dropdown-menu,
+    .modal-header,
+    .modal-footer,
+    .o_Chatter,
+    .o-mail-Form-chatter,
+    .o_attachment_preview,
+    .o_widget,
+    .card,
+    .list-group-item {
+        background-color: var(--o-gray-900) !important;
+        color: var(--o-white) !important;
+        border-color: rgba(255, 193, 7, 0.35) !important;
+    }
+
+    .btn,
+    .btn-secondary,
+    .btn-light,
+    .btn-outline-secondary,
+    .btn-link {
+        background-color: rgba(0, 0, 0, 0.25);
+        color: var(--o-white) !important;
+        border-color: rgba(255, 193, 7, 0.35) !important;
+    }
+
+    .btn-primary,
+    .btn-outline-primary,
+    .o_primary,
+    .o_form_button_save,
+    .o_cp_switch_buttons .btn.active {
+        background-color: var(--warning) !important;
+        color: var(--o-black) !important;
+        border-color: var(--warning) !important;
+    }
+
+    .btn:hover,
+    .btn:focus,
+    .dropdown-item:hover,
+    .dropdown-item:focus,
+    .o_searchview_dropdown_toggler:hover {
+        background-color: rgba(255, 193, 7, 0.18) !important;
+        color: var(--o-white) !important;
+    }
+
+    .o_field_widget input,
+    .o_field_widget textarea,
+    .o_field_widget select,
+    .o_input,
+    .form-control,
+    .form-select {
+        box-shadow: none !important;
+    }
+
+    .o_field_widget input:focus,
+    .o_field_widget textarea:focus,
+    .o_field_widget select:focus,
+    .o_input:focus,
+    .form-control:focus,
+    .form-select:focus {
+        border-color: var(--warning) !important;
+        box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.45) !important;
+    }
+
+    .text-muted,
+    .text-body,
+    .o_form_label,
+    .breadcrumb-item,
+    .o_searchview .o_searchview_facet_label,
+    .o_stat_text {
+        color: rgba(255, 255, 255, 0.8) !important;
+    }
+
+    a,
+    .btn-link,
+    .o_menu_entry_lvl_1,
+    .o_menu_brand,
+    .o_nav_entry,
+    .o_switch_company_menu,
+    .dropdown-item,
+    .o_home_menu .o_app {
+        color: var(--warning) !important;
+    }
+
+    .o_home_menu {
+        background-color: transparent;
+    }
+
+    &.o_home_menu_background,
+    .o_home_menu_background,
+    .o_web_client.o_home_menu_background {
+        background-color: var(--homeMenu-bg-color) !important;
+        background-image: var(--homeMenu-bg-image) !important;
+        background-size: cover;
+        background-attachment: fixed;
+    }
+
+    .o_home_menu .o_app .o_app_icon {
+        background-color: var(--o-gray-900);
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 193, 7, 0.4),
+            0 8px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    .o_home_menu .o_app .o_caption {
+        color: var(--warning);
+        text-shadow: none;
+        font-weight: 600;
+    }
+
+    .o_home_menu .o_app:hover .o_app_icon {
+        transform: translateY(-2px) scale(1.02);
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 193, 7, 0.65),
+            0 12px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .o_main_navbar,
+    .o_control_panel,
+    .o_ui_feature_panel .card-header,
+    .o_ui_feature_banner {
+        background-color: var(--o-gray-900);
+        color: var(--o-white);
+        border-color: var(--warning);
+    }
+
+    .o_main_navbar .dropdown-toggle,
+    .o_main_navbar .o_menu_brand,
+    .o_main_navbar .o_nav_entry,
+    .o_main_navbar .dropdown-item,
+    .o_control_panel .breadcrumb-item,
+    .o_control_panel .o_breadcrumb,
+    .o_control_panel .btn {
+        color: var(--o-white);
+    }
+
+    .o_main_navbar .dropdown-toggle:hover,
+    .o_main_navbar .dropdown-item:hover,
+    .o_main_navbar .o_menu_brand:hover,
+    .o_main_navbar .o_nav_entry:hover {
+        color: var(--warning);
+    }
+
+    .o_main_navbar,
+    .o_control_panel,
+    .o_ui_feature_banner,
+    .o_ui_feature_panel {
+        box-shadow: inset 0 -2px 0 var(--warning);
+    }
+
+    .o_ui_feature_panel {
+        background-color: var(--o-gray-900);
+        color: var(--o-white);
+        border-color: var(--warning);
+    }
+
+    .o_ui_feature_panel .text-muted {
+        color: var(--warning) !important;
+    }
+
+    .o_ui_feature_panel a,
+    .o_ui_feature_panel .btn-link {
+        color: var(--warning);
+    }
+
+    .o_content,
+    .o_action_manager {
+        background-image:
+            linear-gradient(160deg, rgba(255, 193, 7, 0.04), rgba(0, 0, 0, 0.03));
+    }
+}
+
+.o_ui_feature_theme_ramadan_soft {
+    --o-main-text-color: var(--o-white);
+    --o-webclient-background-color: var(--o-gray-900);
+    --o-view-background-color: var(--o-gray-800);
+    --border-color: rgba(255, 193, 7, 0.25);
+    --o-input-border-color: rgba(255, 193, 7, 0.3);
+    --bs-body-color: var(--o-white);
+    --bs-body-bg: var(--o-gray-900);
+    --bs-border-color: rgba(255, 193, 7, 0.25);
+    --bs-link-color: var(--warning);
+    --bs-link-hover-color: var(--warning);
+
+    --homeMenu-bg-color: var(--o-gray-900);
+    --homeMenu-bg-image:
+        radial-gradient(circle at 12% 14%, rgba(255, 193, 7, 0.14) 0 8%, transparent 9%),
+        radial-gradient(circle at 75% 18%, rgba(255, 193, 7, 0.1) 0 6%, transparent 7%),
+        linear-gradient(140deg, var(--o-gray-900) 0%, var(--o-gray-800) 50%, var(--o-gray-900) 100%);
+    --homeMenuCaption-color: var(--o-white);
+
+    &, .o_web_client {
+        background-color: var(--o-gray-900);
+        color: var(--o-white);
+    }
+
+    .o_action_manager,
+    .o_content,
+    .o_form_view,
+    .o_list_renderer,
+    .o_kanban_view,
+    .o_calendar_view,
+    .o_search_panel,
+    .o_searchview,
+    .o_renderer {
+        background-color: var(--o-gray-800);
+        color: var(--o-white);
+    }
+
+    .o_form_view,
+    .o_list_renderer,
+    .o_kanban_renderer,
+    .o_kanban_record,
+    .dropdown-menu,
+    .modal-content,
+    .popover,
+    .o_control_panel,
+    .o_settings_container,
+    .form-control,
+    .form-select,
+    .o_field_widget,
+    .card,
+    .list-group-item {
+        background-color: var(--o-gray-800) !important;
+        color: var(--o-white) !important;
+        border-color: rgba(255, 193, 7, 0.25) !important;
+    }
+
+    .o_main_navbar,
+    .o_control_panel,
+    .o_ui_feature_panel .card-header,
+    .o_ui_feature_banner {
+        background-color: var(--o-gray-900);
+        color: var(--o-white);
+        border-color: rgba(255, 193, 7, 0.35);
+    }
+
+    .btn-primary,
+    .btn-outline-primary,
+    .o_primary {
+        background-color: var(--warning) !important;
+        color: var(--o-black) !important;
+        border-color: var(--warning) !important;
+    }
+
+    .btn-secondary,
+    .btn-light,
+    .btn-outline-secondary,
+    .btn-link {
+        background-color: rgba(0, 0, 0, 0.16);
+        color: var(--o-white) !important;
+        border-color: rgba(255, 193, 7, 0.25) !important;
+    }
+
+    a,
+    .btn-link,
+    .o_menu_brand,
+    .o_nav_entry,
+    .dropdown-item:hover,
+    .dropdown-item:focus {
+        color: var(--warning) !important;
+    }
+
+    &.o_home_menu_background,
+    .o_home_menu_background,
+    .o_web_client.o_home_menu_background {
+        background-color: var(--homeMenu-bg-color) !important;
+        background-image: var(--homeMenu-bg-image) !important;
+        background-size: cover;
+        background-attachment: fixed;
+    }
+
+    .o_home_menu .o_app .o_app_icon {
+        background-color: var(--o-gray-800);
+        box-shadow:
+            inset 0 0 0 1px rgba(255, 193, 7, 0.28),
+            0 6px 14px rgba(0, 0, 0, 0.3);
+    }
+
+    .o_home_menu .o_app .o_caption {
+        color: var(--o-white);
+        text-shadow: none;
+        font-weight: 600;
+    }
+}
+
+.o_ui_feature_systray .dropdown-menu {
+    min-width: 18rem;
+}
+
+.o_ui_feature_summary {
+    min-width: 16rem;
+}
+
+.o_ui_feature_panel {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    width: 20rem;
+    z-index: 1040;
+    border-color: var(--border-color, var(--o-gray-300));
+    background-color: var(--o-view-background-color, #fff);
+}

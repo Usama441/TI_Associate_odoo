@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="custom_ui_feature_hub.UIFeatureBanner">
+        <div t-if="showBanner" class="o_ui_feature_banner px-3 py-2">
+            <span class="fa fa-bullhorn me-2"/>
+            <span t-esc="message"/>
+        </div>
+    </t>
+
+    <t t-name="custom_ui_feature_hub.UIFeatureSystray">
+        <div t-if="isVisible" class="o_ui_feature_systray bg-inherit">
+            <DropdownGroup group="'web-navbar-group'">
+                <Dropdown>
+                    <button class="py-1 py-lg-0 px-2" title="UI Features">
+                        <i class="fa fa-sliders me-1"/>
+                        <span class="d-none d-lg-inline">UI</span>
+                    </button>
+
+                    <t t-set-slot="content">
+                        <t t-if="hasQuickLinks">
+                            <div class="dropdown-header">Quick Links</div>
+                            <t t-foreach="quickLinks" t-as="item" t-key="item.url">
+                                <DropdownItem attrs="{ href: item.url }">
+                                    <span t-esc="item.label"/>
+                                </DropdownItem>
+                            </t>
+                            <div role="separator" class="dropdown-divider"/>
+                        </t>
+
+                        <t t-if="showSummary">
+                            <div class="dropdown-header">Settings Summary</div>
+                            <div class="px-3 py-2 o_ui_feature_summary">
+                                <t t-foreach="summaryItems" t-as="entry" t-key="entry.label">
+                                    <div class="d-flex justify-content-between gap-3 small mb-1">
+                                        <span class="text-muted" t-esc="entry.label"/>
+                                        <span class="text-end" t-esc="entry.value"/>
+                                    </div>
+                                </t>
+                            </div>
+                        </t>
+                    </t>
+                </Dropdown>
+            </DropdownGroup>
+        </div>
+    </t>
+
+    <t t-name="custom_ui_feature_hub.UIFeaturePanel">
+        <div t-if="isVisible" class="o_ui_feature_panel card shadow-sm">
+            <div class="card-header py-2 px-3">
+                <strong>UI Widget</strong>
+            </div>
+            <div class="card-body p-3">
+                <t t-if="showSummary">
+                    <div class="small text-muted mb-2">Settings Summary</div>
+                    <t t-foreach="summaryItems" t-as="entry" t-key="entry.label">
+                        <div class="d-flex justify-content-between gap-3 small mb-1">
+                            <span class="text-muted" t-esc="entry.label"/>
+                            <span class="text-end" t-esc="entry.value"/>
+                        </div>
+                    </t>
+                </t>
+
+                <t t-if="quickLinks.length">
+                    <div class="small text-muted mt-3 mb-2">Quick Links</div>
+                    <div class="d-flex flex-column gap-1">
+                        <a
+                            t-foreach="quickLinks"
+                            t-as="item"
+                            t-key="item.url"
+                            class="btn btn-link p-0 text-start"
+                            t-att-href="item.url"
+                            t-esc="item.label"
+                        />
+                    </div>
+                </t>
+            </div>
+        </div>
+    </t>
+
+</templates>

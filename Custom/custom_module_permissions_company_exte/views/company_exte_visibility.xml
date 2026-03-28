@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_company_form_other_information_visibility" model="ir.ui.view">
+            <field name="name">res.company.form.other.information.visibility</field>
+            <field name="model">res.company</field>
+            <field name="inherit_id" ref="company_exte.view_company_form_other_information"/>
+            <field name="arch" type="xml">
+                <xpath expr="//page[@name='other_information']" position="attributes">
+                    <attribute name="groups">custom_module_permissions_company_exte.group_custom_module_company_other_info</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <record id="view_company_form_shareholders_visibility" model="ir.ui.view">
+            <field name="name">res.company.form.shareholders.visibility</field>
+            <field name="model">res.company</field>
+            <field name="inherit_id" ref="company_exte.view_company_form_shareholders_tab"/>
+            <field name="arch" type="xml">
+                <xpath expr="//page[@name='shareholder_information']" position="attributes">
+                    <attribute name="groups">custom_module_permissions_company_exte.group_custom_module_company_other_info</attribute>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

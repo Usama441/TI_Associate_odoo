@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="res_config_settings_view_form_custom_ui_feature_hub" model="ir.ui.view">
+            <field name="name">res.config.settings.view.form.inherit.custom.ui.feature.hub</field>
+            <field name="model">res.config.settings</field>
+            <field name="priority" eval="90"/>
+            <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//form" position="inside">
+                    <app string="UI Features" name="custom_ui_feature_hub" groups="base.group_system">
+                        <block title="Style Presets" name="ui_feature_style_preset_block">
+                            <setting string="Backend Style Preset" help="Apply a lightweight style preset for internal users.">
+                                <field name="ui_feature_theme_preset" widget="radio"/>
+                            </setting>
+                        </block>
+
+                        <block title="Announcement" name="ui_feature_announcement_block">
+                            <setting string="Announcement Banner" help="Show a global read-only banner to internal users.">
+                                <field name="ui_feature_announcement_enabled"/>
+                                <div class="content-group mt16" invisible="not ui_feature_announcement_enabled">
+                                    <field
+                                        name="ui_feature_announcement_message"
+                                        placeholder="System update tonight at 10 PM"
+                                        class="w-100"
+                                    />
+                                </div>
+                            </setting>
+                        </block>
+
+                        <block title="Quick Links" name="ui_feature_quick_links_block">
+                            <setting string="Quick Links Widget" help="Show useful links in the top bar dropdown for internal users.">
+                                <field name="ui_feature_quick_links_enabled"/>
+                                <div class="content-group mt16" invisible="not ui_feature_quick_links_enabled">
+                                    <div class="text-muted mb-2">Format: Label|URL ; Label|URL</div>
+                                    <field name="ui_feature_quick_links_text" class="w-100"/>
+                                </div>
+                            </setting>
+                        </block>
+
+                        <block title="User Visibility" name="ui_feature_user_visibility_block">
+                            <setting string="Settings Summary Widget" help="Show a read-only summary of selected settings to internal users.">
+                                <field name="ui_feature_show_settings_summary"/>
+                            </setting>
+                        </block>
+                    </app>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="Audit_Report.account_report_menu" model="ir.ui.menu">
+            <field name="group_ids" eval="[(6, 0, [ref('custom_module_permissions_audit_report.group_custom_module_audit_report')])]"/>
+        </record>
+
+        <record id="Audit_Report.account_report_generate_menu" model="ir.ui.menu">
+            <field name="group_ids" eval="[(6, 0, [ref('custom_module_permissions_audit_report.group_custom_module_audit_report')])]"/>
+        </record>
+
+        <record id="Audit_Report.audit_report_saved_menu" model="ir.ui.menu">
+            <field name="group_ids" eval="[(6, 0, [ref('custom_module_permissions_audit_report.group_custom_module_audit_report')])]"/>
+        </record>
+
+        <record id="Audit_Report.audit_report_revision_menu" model="ir.ui.menu">
+            <field name="group_ids" eval="[(6, 0, [ref('custom_module_permissions_audit_report.group_custom_module_audit_report')])]"/>
+        </record>
+
+        <record id="Audit_Report.audit_report_wizard_action" model="ir.actions.act_window">
+            <field name="group_ids" eval="[(6, 0, [ref('custom_module_permissions_audit_report.group_custom_module_audit_report')])]"/>
+        </record>
+
+        <record id="Audit_Report.audit_report_document_action" model="ir.actions.act_window">
+            <field name="group_ids" eval="[(6, 0, [ref('custom_module_permissions_audit_report.group_custom_module_audit_report')])]"/>
+        </record>
+
+        <record id="Audit_Report.audit_report_revision_action" model="ir.actions.act_window">
+            <field name="group_ids" eval="[(6, 0, [ref('custom_module_permissions_audit_report.group_custom_module_audit_report')])]"/>
+        </record>
+    </data>
+</odoo>

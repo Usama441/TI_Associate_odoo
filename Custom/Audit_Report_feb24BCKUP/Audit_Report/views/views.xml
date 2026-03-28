@@ -1,0 +1,597 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Account Report Wizard Form View -->
+        <record id="account_report_wizard_form" model="ir.ui.view">
+            <field name="name">audit.report.form</field>
+            <field name="model">audit.report</field>
+            <field name="arch" type="xml">
+                <form string="Account Report Wizard">
+                    <notebook>
+                        <page string="Report Settings">
+                            <group>
+                                <group string="Report Dates">
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="balance_sheet_date_mode"/>
+                                    <field name="prior_year_mode"/>
+                                    <field name="prior_balance_sheet_date_mode"/>
+                                    <field name="prior_date_start"
+                                           invisible="prior_year_mode != 'manual'"
+                                           required="prior_year_mode == 'manual'"/>
+                                    <field name="prior_date_end"
+                                           invisible="prior_year_mode != 'manual'"
+                                           required="prior_year_mode == 'manual'"/>
+                                    <field name="soce_prior_opening_label_date"
+                                           invisible="prior_year_mode != 'manual' or prior_balance_sheet_date_mode != 'end_only'"/>
+                                </group>
+                                <group string="Report Options">
+                                    <field name="report_type"/>
+                                    <field name="audit_period_category"/>
+                                    <field name="auditor_type"/>
+                                    <field name="show_related_parties_note"/>
+                                    <field name="show_shareholder_note"/>
+                                    <field name="corporate_tax_liability_paid"/>
+                                    <field name="show_ct_first_tax_year_line"/>
+                                </group>
+                                <group string="Emphasis of Matter">
+                                    <field name="emphasis_change_period"/>
+                                    <field name="emphasis_change_from_date"
+                                           invisible="not emphasis_change_period"
+                                           required="emphasis_change_period"/>
+                                    <field name="emphasis_change_to_date"
+                                           invisible="not emphasis_change_period"
+                                           required="emphasis_change_period"/>
+                                    <field name="emphasis_correction_error"/>
+                                    <field name="emphasis_liquidation"/>
+                                </group>
+                                <group string="Additional Notes">
+                                    <field name="additional_note_legal_status_change"/>
+                                    <field name="emphasis_legal_change_date"
+                                           invisible="not additional_note_legal_status_change"
+                                           required="additional_note_legal_status_change"/>
+                                    <field name="emphasis_legal_status_from"
+                                           invisible="not additional_note_legal_status_change"
+                                           required="additional_note_legal_status_change"/>
+                                    <field name="emphasis_legal_status_to"
+                                           invisible="not additional_note_legal_status_change"
+                                           required="additional_note_legal_status_change"/>
+                                    <field name="additional_note_no_active_bank_account"/>
+                                    <field name="additional_note_business_bank_account_opened"/>
+                                </group>
+                                <group string="Previous Settings">
+                                    <field name="use_previous_settings"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Layout Controls">
+                            <group>
+                                <group string="Paragraph Gap Controls">
+                                    <field name="gap_report_of_directors"/>
+                                    <field name="gap_independent_auditor_report"/>
+                                    <field name="gap_notes_to_financial_statements"/>
+                                </group>
+                                <group string="Signature Break Lines (&lt;br&gt;)">
+                                    <field name="signature_break_lines_report_of_directors"/>
+                                    <field name="signature_break_lines_balance_sheet"/>
+                                    <field name="signature_break_lines_profit_loss"/>
+                                    <field name="signature_break_lines_changes_in_equity"/>
+                                    <field name="signature_break_lines_cash_flows"/>
+                                    <field name="signature_break_lines_notes"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Trial Balance Overrides">
+                            <group>
+                                <group string="Controls">
+                                    <field name="tb_include_zero_accounts"/>
+                                    <div style="margin: 0 0 8px 0; color: #6c757d;">
+                                        Load trial balance lines, adjust overrides, then regenerate HTML/PDF. These overrides are report-only and never update ledger entries.
+                                    </div>
+                                    <div class="o_row" style="gap: 8px;">
+                                        <button name="action_tb_load_lines" type="object" string="Load Lines" class="btn btn-secondary"/>
+                                        <button name="action_tb_reload_lines" type="object" string="Reload Lines" class="btn btn-secondary"/>
+                                        <button name="action_tb_reset_overrides" type="object" string="Reset Overrides" class="btn btn-secondary"/>
+                                    </div>
+                                </group>
+                                <group string="Mismatch Warnings">
+                                    <field name="tb_warning_current" readonly="1" invisible="not tb_warning_current"/>
+                                    <field name="tb_diff_current" readonly="1"/>
+                                    <field name="tb_warning_prior" readonly="1"
+                                           invisible="(not tb_warning_prior) or audit_period_category in ('cessation_1y', 'normal_1y', 'dormant_1y')"/>
+                                    <field name="tb_diff_prior" readonly="1"
+                                           invisible="audit_period_category in ('cessation_1y', 'normal_1y', 'dormant_1y')"/>
+                                </group>
+                            </group>
+                            <group string="Current Period Overrides">
+                                <field name="tb_override_line_ids" domain="[('period_key', '=', 'current')]" nolabel="1">
+                                    <list editable="bottom" create="0" delete="0">
+                                        <field name="account_code" readonly="1"/>
+                                        <field name="account_name" readonly="1"/>
+                                        <field name="system_debit" readonly="1"/>
+                                        <field name="system_credit" readonly="1"/>
+                                        <field name="system_balance" readonly="1"/>
+                                        <field name="override_debit"/>
+                                        <field name="override_credit"/>
+                                        <field name="override_balance"/>
+                                        <field name="effective_debit" readonly="1"/>
+                                        <field name="effective_credit" readonly="1"/>
+                                        <field name="effective_balance" readonly="1"/>
+                                        <field name="is_overridden" readonly="1"/>
+                                    </list>
+                                </field>
+                            </group>
+                            <group string="Prior Period Overrides"
+                                   invisible="audit_period_category in ('cessation_1y', 'normal_1y', 'dormant_1y')">
+                                <field name="tb_override_line_ids" domain="[('period_key', '=', 'prior')]" nolabel="1">
+                                    <list editable="bottom" create="0" delete="0">
+                                        <field name="account_code" readonly="1"/>
+                                        <field name="account_name" readonly="1"/>
+                                        <field name="system_debit" readonly="1"/>
+                                        <field name="system_credit" readonly="1"/>
+                                        <field name="system_balance" readonly="1"/>
+                                        <field name="override_debit"/>
+                                        <field name="override_credit"/>
+                                        <field name="override_balance"/>
+                                        <field name="effective_debit" readonly="1"/>
+                                        <field name="effective_credit" readonly="1"/>
+                                        <field name="effective_balance" readonly="1"/>
+                                        <field name="is_overridden" readonly="1"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+                        <page string="Company Info">
+                            <group>
+                                <group string="Company and Free Zone Information">
+                                    <field name="company_id" readonly="1"/>
+                                    <field name="company_street" string="Address"/>
+                                    <field name="company_city"/>
+                                    <field name="company_free_zone"/>
+                                    <field name="company_license_number"/>
+                                    <field name="trade_license_activities"/>
+                                    <field name="incorporation_date"/>
+                                </group>
+                                <group string="Tax Information">
+                                    <field name="corporate_tax_registration_number"/>
+                                    <field name="vat_registration_number"/>
+                                    <field name="corporate_tax_start_date"/>
+                                    <field name="corporate_tax_end_date"/>
+                                </group>
+                                <group string="Free Zone Regulations">
+                                    <field name="implementing_regulations_freezone"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Shareholders">
+                            <group col="1">
+                                <group string="Share capital status">
+                                    <field name="share_capital_paid_status"/>
+                                    <field name="show_share_capital_conversion_note"/>
+                                    <field name="share_conversion_currency"
+                                           invisible="not show_share_capital_conversion_note"
+                                           required="show_share_capital_conversion_note"/>
+                                    <field name="share_conversion_original_value"
+                                           invisible="not show_share_capital_conversion_note"
+                                           required="show_share_capital_conversion_note"/>
+                                    <field name="share_conversion_exchange_rate"
+                                           invisible="not show_share_capital_conversion_note"
+                                           required="show_share_capital_conversion_note"/>
+                                    <field name="show_share_capital_transfer_note"/>
+                                    <field name="share_transfer_date"
+                                           invisible="not show_share_capital_transfer_note"
+                                           required="show_share_capital_transfer_note"/>
+                                    <field name="share_transfer_from"
+                                           invisible="not show_share_capital_transfer_note"
+                                           required="show_share_capital_transfer_note"/>
+                                    <field name="share_transfer_shares"
+                                           invisible="not show_share_capital_transfer_note"
+                                           required="show_share_capital_transfer_note"/>
+                                    <field name="share_transfer_percentage"
+                                           invisible="not show_share_capital_transfer_note"
+                                           required="show_share_capital_transfer_note"/>
+                                    <field name="share_transfer_to"
+                                           invisible="not show_share_capital_transfer_note"
+                                           required="show_share_capital_transfer_note"/>
+                                </group>
+                                <group string="Shareholders" col="1">
+                                    <div style="margin: 0 0 8px 0; color: #6c757d;">
+                                        Use Owner for entity information and share capital notes, Director for Note 1.1, and Signatory for Note 1.4 and signature blocks.
+                                    </div>
+                                    <table class="o_list_table table table-sm o_list_view"
+                                           style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #d7dce1; border-radius: 8px; overflow: hidden; background: #fff;">
+                                        <colgroup>
+                                            <col style="width: 22%;"/>
+                                            <col style="width: 14%;"/>
+                                            <col style="width: 9%;"/>
+                                            <col style="width: 11%;"/>
+                                            <col style="width: 12%;"/>
+                                            <col style="width: 6%;"/>
+                                            <col style="width: 6%;"/>
+                                            <col style="width: 8%;"/>
+                                            <col style="width: 12%;"/>
+                                        </colgroup>
+                                        <thead>
+                                            <tr style="background: #f4f6f9;">
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;">Company Shareholder</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;">Nationality</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;" class="text-end">No. of Shares</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;" class="text-end">Share Value</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;" class="text-end">Total Share</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;" class="text-center">Owner</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;" class="text-center">Director</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;" class="text-center">Signatory</th>
+                                                <th style="padding: 10px 12px; color: #4b5563; font-weight: 600; border-bottom: 1px solid #d7dce1;">Signature Role</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_1" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_1" nolabel="1" readonly="not shareholder_1"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_1" nolabel="1" readonly="not shareholder_1"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_1" nolabel="1" readonly="not shareholder_1"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_1" nolabel="1" readonly="not signature_include_1"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_2" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_2" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_2" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_2" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_2" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_2" nolabel="1" readonly="not shareholder_2"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_2" nolabel="1" readonly="not shareholder_2"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_2" nolabel="1" readonly="not shareholder_2"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_2" nolabel="1" readonly="not signature_include_2"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_3" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_3" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_3" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_3" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_3" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_3" nolabel="1" readonly="not shareholder_3"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_3" nolabel="1" readonly="not shareholder_3"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_3" nolabel="1" readonly="not shareholder_3"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_3" nolabel="1" readonly="not signature_include_3"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_4" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_4" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_4" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_4" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_4" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_4" nolabel="1" readonly="not shareholder_4"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_4" nolabel="1" readonly="not shareholder_4"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_4" nolabel="1" readonly="not shareholder_4"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_4" nolabel="1" readonly="not signature_include_4"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_5" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_5" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_5" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_5" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_5" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_5" nolabel="1" readonly="not shareholder_5"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_5" nolabel="1" readonly="not shareholder_5"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_5" nolabel="1" readonly="not shareholder_5"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_5" nolabel="1" readonly="not signature_include_5"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_6" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_6" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_6" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_6" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_6" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_6" nolabel="1" readonly="not shareholder_6"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_6" nolabel="1" readonly="not shareholder_6"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_6" nolabel="1" readonly="not shareholder_6"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_6" nolabel="1" readonly="not signature_include_6"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_7" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_7" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_7" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_7" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_7" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_7" nolabel="1" readonly="not shareholder_7"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_7" nolabel="1" readonly="not shareholder_7"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_7" nolabel="1" readonly="not shareholder_7"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_7" nolabel="1" readonly="not signature_include_7"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_8" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_8" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_8" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_8" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_8" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_8" nolabel="1" readonly="not shareholder_8"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_8" nolabel="1" readonly="not shareholder_8"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_8" nolabel="1" readonly="not shareholder_8"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_8" nolabel="1" readonly="not signature_include_8"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="shareholder_9" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="nationality_9" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="number_of_shares_9" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="share_value_9" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-end"><field name="total_share_9" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="owner_include_9" nolabel="1" readonly="not shareholder_9"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="director_include_9" nolabel="1" readonly="not shareholder_9"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;" class="text-center"><field name="signature_include_9" nolabel="1" readonly="not shareholder_9"/></td>
+                                                <td style="padding: 8px 10px; border-bottom: 1px solid #eceff3;"><field name="signature_role_9" nolabel="1" readonly="not signature_include_9"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 10px;"><field name="shareholder_10" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px;"><field name="nationality_10" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px;" class="text-end"><field name="number_of_shares_10" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px;" class="text-end"><field name="share_value_10" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px;" class="text-end"><field name="total_share_10" readonly="1" nolabel="1" class="w-100"/></td>
+                                                <td style="padding: 8px 10px;" class="text-center"><field name="owner_include_10" nolabel="1" readonly="not shareholder_10"/></td>
+                                                <td style="padding: 8px 10px;" class="text-center"><field name="director_include_10" nolabel="1" readonly="not shareholder_10"/></td>
+                                                <td style="padding: 8px 10px;" class="text-center"><field name="signature_include_10" nolabel="1" readonly="not shareholder_10"/></td>
+                                                <td style="padding: 8px 10px;"><field name="signature_role_10" nolabel="1" readonly="not signature_include_10"/></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </group>
+                                <group string="Related parties">
+                                    <field name="related_party_name"/>
+                                    <field name="related_party_relationship"/>
+                                    <field name="related_party_transaction"/>
+                                    <field name="related_party_amount"/>
+                                    <field name="related_party_amount_prior"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                    <footer>
+                        <button name="action_print_account_report_lines" type="object" 
+                                string="View (HTML)" class="btn btn-primary"/>
+                        <button name="action_print_account_report_pdf" type="object"
+                                string="View (PDF)" class="btn btn-secondary"/>
+                        <button name="action_save_editable_report" type="object"
+                                string="Save/Edit PDF" class="btn btn-secondary"/>
+                        <button string="Cancel" class="btn btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!-- Wizard Action -->
+        <record id="audit_report_wizard_action" model="ir.actions.act_window">
+            <field name="name">Account Report</field>
+            <field name="res_model">audit.report</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+        </record>
+
+        <!-- Menu Item under Accounting > Reporting -->
+        <menuitem id="account_report_menu"
+                  name="Audit Reports"
+                  parent="account.menu_finance_reports"
+                  sequence="100"/>
+
+        <menuitem id="account_report_generate_menu"
+                  name="Generate Audit Report"
+                  parent="account_report_menu"
+                  action="audit_report_wizard_action"
+                  sequence="100"/>
+
+        <record id="audit_report_print_wizard_form" model="ir.ui.view">
+            <field name="name">audit.report.print.wizard.form</field>
+            <field name="model">audit.report.print.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Print Saved Revision">
+                    <group>
+                        <field name="company_id" readonly="1"/>
+                        <field name="document_id"/>
+                        <field name="revision_id"/>
+                    </group>
+                    <footer>
+                        <button name="action_print_revision" type="object" string="Print PDF" class="btn btn-primary"/>
+                        <button string="Cancel" class="btn btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <record id="view_audit_report_document_search" model="ir.ui.view">
+            <field name="name">audit.report.document.search</field>
+            <field name="model">audit.report.document</field>
+            <field name="arch" type="xml">
+                <search string="Saved Audit Reports">
+                    <field name="name"/>
+                    <field name="company_id"/>
+                    <field name="date_start"/>
+                    <field name="date_end"/>
+                    <field name="report_type"/>
+                    <field name="audit_period_category"/>
+                    <filter name="active_only" string="Active" domain="[('active', '=', True)]"/>
+                </search>
+            </field>
+        </record>
+
+        <record id="view_audit_report_document_tree" model="ir.ui.view">
+            <field name="name">audit.report.document.tree</field>
+            <field name="model">audit.report.document</field>
+            <field name="arch" type="xml">
+                <list string="Saved Audit Reports">
+                    <field name="name"/>
+                    <field name="company_id"/>
+                    <field name="date_start"/>
+                    <field name="date_end"/>
+                    <field name="report_type"/>
+                    <field name="audit_period_category"/>
+                    <field name="revision_count"/>
+                    <field name="current_revision_id"/>
+                    <field name="active"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="view_audit_report_document_form" model="ir.ui.view">
+            <field name="name">audit.report.document.form</field>
+            <field name="model">audit.report.document</field>
+            <field name="arch" type="xml">
+                <form string="Saved Audit Report">
+                    <header>
+                        <button name="action_open_current_preview" type="object" string="Preview Current Revision" class="btn btn-secondary"/>
+                        <button name="action_open_print_wizard" type="object" string="Print Revision" class="btn btn-primary"/>
+                        <button name="action_open_revisions" type="object" string="Open Revisions" class="btn btn-secondary"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group string="Report">
+                                <field name="name"/>
+                                <field name="company_id"/>
+                                <field name="date_start"/>
+                                <field name="date_end"/>
+                                <field name="report_type"/>
+                                <field name="audit_period_category"/>
+                            </group>
+                            <group string="Current State">
+                                <field name="current_revision_id"/>
+                                <field name="revision_count" readonly="1"/>
+                                <field name="active"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Revisions">
+                                <field name="revision_ids" nolabel="1">
+                                    <list>
+                                        <field name="display_name"/>
+                                        <field name="version_no"/>
+                                        <field name="created_by_id"/>
+                                        <field name="created_on"/>
+                                        <field name="is_current"/>
+                                        <field name="is_removed"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Wizard Snapshot">
+                                <field name="source_wizard_json" nolabel="1" widget="text"/>
+                            </page>
+                            <page string="TB Overrides Snapshot">
+                                <field name="tb_overrides_json" nolabel="1" widget="text"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="view_audit_report_revision_search" model="ir.ui.view">
+            <field name="name">audit.report.revision.search</field>
+            <field name="model">audit.report.revision</field>
+            <field name="arch" type="xml">
+                <search string="Report Revisions">
+                    <field name="document_id"/>
+                    <field name="company_id"/>
+                    <field name="version_no"/>
+                    <field name="created_by_id"/>
+                    <filter name="active_only" string="Not Removed" domain="[('is_removed', '=', False)]"/>
+                    <filter name="removed_only" string="Removed" domain="[('is_removed', '=', True)]"/>
+                </search>
+            </field>
+        </record>
+
+        <record id="view_audit_report_revision_tree" model="ir.ui.view">
+            <field name="name">audit.report.revision.tree</field>
+            <field name="model">audit.report.revision</field>
+            <field name="arch" type="xml">
+                <list string="Report Revisions">
+                    <field name="display_name"/>
+                    <field name="document_id"/>
+                    <field name="company_id"/>
+                    <field name="version_no"/>
+                    <field name="is_current"/>
+                    <field name="is_removed"/>
+                    <field name="created_by_id"/>
+                    <field name="created_on"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="view_audit_report_revision_form" model="ir.ui.view">
+            <field name="name">audit.report.revision.form</field>
+            <field name="model">audit.report.revision</field>
+            <field name="arch" type="xml">
+                <form string="Report Revision">
+                    <header>
+                        <button name="action_open_preview" type="object" string="Preview HTML" class="btn btn-secondary"/>
+                        <button name="action_open_pdf" type="object" string="View PDF" class="btn btn-secondary"/>
+                        <button name="action_open_structured_editor" type="object" string="Structured Editor" class="btn btn-primary"/>
+                        <button name="action_open_freeform_editor" type="object" string="Freeform Editor" class="btn btn-secondary"/>
+                        <button name="action_soft_remove" type="object" string="Remove" class="btn btn-secondary" invisible="is_removed"/>
+                        <button name="action_restore" type="object" string="Restore" class="btn btn-secondary" invisible="not is_removed"/>
+                    </header>
+                    <sheet>
+                        <group>
+                            <group string="Revision">
+                                <field name="display_name" readonly="1"/>
+                                <field name="document_id"/>
+                                <field name="company_id"/>
+                                <field name="version_no" readonly="1"/>
+                                <field name="parent_revision_id"/>
+                                <field name="is_current" readonly="1"/>
+                            </group>
+                            <group string="Lifecycle">
+                                <field name="is_removed"/>
+                                <field name="removed_by_id" readonly="1"/>
+                                <field name="removed_on" readonly="1"/>
+                                <field name="created_by_id" readonly="1"/>
+                                <field name="created_on" readonly="1"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Table Index">
+                                <field name="table_index_json" nolabel="1" widget="text" readonly="1"/>
+                            </page>
+                            <page string="TB Overrides Snapshot">
+                                <field name="tb_overrides_json" nolabel="1" widget="text" readonly="1"/>
+                            </page>
+                            <page string="HTML Source">
+                                <group>
+                                    <separator string="HTML source is intentionally hidden in this form for faster loading."/>
+                                    <separator string="Use Freeform Editor to edit content or Preview HTML to inspect the rendered report."/>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="audit_report_document_action" model="ir.actions.act_window">
+            <field name="name">Saved Audit Reports</field>
+            <field name="res_model">audit.report.document</field>
+            <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="view_audit_report_document_search"/>
+            <field name="context">{'search_default_active_only': 1}</field>
+        </record>
+
+        <record id="audit_report_revision_action" model="ir.actions.act_window">
+            <field name="name">Audit Report Revisions</field>
+            <field name="res_model">audit.report.revision</field>
+            <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="view_audit_report_revision_search"/>
+            <field name="context">{'search_default_active_only': 1}</field>
+        </record>
+
+        <menuitem id="audit_report_saved_menu"
+                  name="Saved Audit Reports"
+                  parent="account_report_menu"
+                  action="audit_report_document_action"
+                  sequence="110"/>
+
+        <menuitem id="audit_report_revision_menu"
+                  name="Audit Report Revisions"
+                  parent="account_report_menu"
+                  action="audit_report_revision_action"
+                  sequence="120"/>
+    </data>
+</odoo>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_account_account_form_cash_flow_visibility" model="ir.ui.view">
+            <field name="name">account.account.form.cash.flow.visibility</field>
+            <field name="model">account.account</field>
+            <field name="inherit_id" ref="account_cash_flow_config.view_account_account_form_inherit_cash_flow"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='cash_flow_type']" position="attributes">
+                    <attribute name="groups">custom_module_permissions_cash_flow_config.group_custom_module_cash_flow_config</attribute>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

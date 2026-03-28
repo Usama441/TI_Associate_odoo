@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_vat_threshold_user,VAT Threshold User,model_vat_threshold,base.group_user,1,0,0,0
+access_vat_threshold_manager,VAT Threshold Manager,model_vat_threshold,base.group_system,1,1,1,1
+access_vat_threshold_config_manager,VAT Threshold Config Manager,model_vat_threshold_config,base.group_system,1,1,1,1
