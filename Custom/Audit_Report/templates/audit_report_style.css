@@ -242,9 +242,9 @@ body {
         position: fixed;
         top: 50%;
         left: 50%;
-        transform: translate(-50%, -50%) rotate(-45deg);
+        transform: translate(-50%, -50%) rotate(-35deg);
         font-family: "Times New Roman", Times, serif;
-        font-size: 150pt;
+        font-size: 80pt;
         font-weight: 700;
         color: rgba(128, 128, 128, 0.25);
         letter-spacing: 4pt;

@@ -262,7 +262,7 @@ class TestAuditReportNoteRendering(TransactionCase):
         ])
         names = {line['name']: line for line in normalized}
 
-        self.assertIn('Subcontractors', names)
+        self.assertIn('Subcontractor', names)
         self.assertIn('Entertainment', names)
         self.assertIn('Audit and accounting fee', names)
         self.assertIn('Audit and Accounting fee accrual', names)
@@ -278,14 +278,28 @@ class TestAuditReportNoteRendering(TransactionCase):
         self.assertNotIn('Other Accountant Fee', names)
         self.assertNotIn('Audit Fee Accrual', names)
 
-    def test_cost_of_revenue_normalization_renames_stock_purchase_to_purchases(self):
+    def test_cost_of_revenue_normalization_renames_requested_labels(self):
         wizard = self._create_wizard()
 
         normalized = wizard._normalize_cost_of_revenue_note_lines([
             {'code': '51010101', 'name': 'Stock Purchase', 'current': 40.0, 'prev': 10.0},
+            {'code': '51010102', 'name': 'Subcontractor Services', 'current': 4.0, 'prev': 1.0},
         ])
 
         self.assertEqual(normalized[0]['name'], 'Purchases')
+        self.assertEqual(normalized[1]['name'], 'Subcontractor')
+
+    def test_canonical_note_name_renames_staff_salary_variants(self):
+        wizard = self._create_wizard()
+
+        self.assertEqual(
+            wizard._canonical_note_line_display_name('Staff Salary'),
+            'Salaries and wages',
+        )
+        self.assertEqual(
+            wizard._canonical_note_line_display_name('Coaching Staff Salaries'),
+            'Salaries and wages',
+        )
 
     def test_full_year_body_period_word_uses_date_span_while_header_stays_report_type(self):
         wizard = self._create_wizard(

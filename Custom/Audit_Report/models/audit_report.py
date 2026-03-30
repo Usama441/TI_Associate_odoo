@@ -781,6 +781,8 @@ class AuditReport(models.TransientModel):
     @api.model
     def _canonical_note_line_display_name(self, value):
         normalized_name = self._note_line_key(value)
+        if re.search(r'\bstaff salaries?\b', normalized_name):
+            return 'Salaries and wages'
         if normalized_name in {
             'audit fee accrual',
             'audit fees accrual',
@@ -796,6 +798,7 @@ class AuditReport(models.TransientModel):
         return {
             '120302': 'Prepayment',
             '120304': 'VAT recoverable',
+            '220201': 'Accounts payable',
             '220302': 'VAT payable',
         }
 
@@ -822,17 +825,18 @@ class AuditReport(models.TransientModel):
             'marketing and advertisement expenses': 'Advertising',
             'marketing and advertisement expense': 'Advertising',
             "director's salary": 'Director salary',
-            'director’s salary': 'Director salary',
             'director salary': 'Director salary',
             'directors salary': 'Director salary',
-            'subcontractor service': 'Subcontractors',
-            'subcontractor services': 'Subcontractors',
+            'subcontractor service': 'Subcontractor',
+            'subcontractor services': 'Subcontractor',
             'entertainment expense': 'Entertainment',
             'entertainment expenses': 'Entertainment',
             'client entertainment': 'Entertainment',
             'business insurance': 'Insurance expense',
             'business insurance expense': 'Insurance expense',
             'business insurance expenses': 'Insurance expense',
+            'staff salary': 'Salaries and wages',
+            'staff salaries': 'Salaries and wages',
         }
         audit_accounting_fee_aliases = {
             'audit fee',
@@ -954,11 +958,18 @@ class AuditReport(models.TransientModel):
 
     @api.model
     def _normalize_cost_of_revenue_note_lines(self, lines):
+        rename_map = {
+            'stock purchase': 'Purchases',
+            'stock purchases': 'Purchases',
+            'subcontractor service': 'Subcontractor',
+            'subcontractor services': 'Subcontractor',
+        }
         normalized = []
         for line in lines:
             updated_line = dict(line)
-            if self._note_line_key(updated_line.get('name')) in ('stock purchase', 'stock purchases'):
-                updated_line['name'] = 'Purchases'
+            normalized_name = self._note_line_key(updated_line.get('name'))
+            if normalized_name in rename_map:
+                updated_line['name'] = rename_map[normalized_name]
             normalized.append(updated_line)
         return normalized
 
