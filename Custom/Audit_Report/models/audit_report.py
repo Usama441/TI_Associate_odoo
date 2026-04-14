@@ -1890,6 +1890,71 @@ class AuditReport(models.TransientModel):
                 self.id,
             )
 
+        # Validate prior year dates are not ahead of current year dates in manual mode
+        if self.prior_year_mode == 'manual' and self.prior_date_start and self.prior_date_end:
+            if self.date_start and self.prior_date_start >= self.date_start:
+                raise ValidationError(
+                    _("PRIOR YEAR DATE START INVALID: Prior year start date (%s) must be before "
+                      "current year start date (%s). Please adjust the prior year dates in the "
+                      "'Prior Year Dates' section.") % (
+                        self.prior_date_start.strftime('%d %B %Y'),
+                        self.date_start.strftime('%d %B %Y')
+                    )
+                )
+            if self.date_end and self.prior_date_end >= self.date_end:
+                raise ValidationError(
+                    _("PRIOR YEAR DATE END INVALID: Prior year end date (%s) must be before "
+                      "current year end date (%s). Please adjust the prior year dates in the "
+                      "'Prior Year Dates' section.") % (
+                        self.prior_date_end.strftime('%d %B %Y'),
+                        self.date_end.strftime('%d %B %Y')
+                    )
+                )
+
+        period_category = (self.audit_period_category or '').lower()
+        show_prior_year = not period_category.endswith('_1y')
+
+        if show_prior_year and not self.soce_prior_opening_label_date:
+            raise ValidationError(
+                _(
+                    "SOCE FIRST BALANCE DATE REQUIRED: Unable to generate PDF. "
+                    "For 2-year reports, please set 'SOCE First Balance Date (2-year, label only)' "
+                    "in the 'Report Settings' tab."
+                )
+            )
+
+        if not (self.company_free_zone or '').strip():
+            raise ValidationError(
+                _(
+                    "FREE ZONE REQUIRED: Unable to generate PDF. "
+                    "Please select Company Free Zone in the 'Company Info' tab."
+                )
+            )
+
+        if not (self.company_license_number or '').strip():
+            raise ValidationError(
+                _(
+                    "COMPANY LICENSE NUMBER REQUIRED: Unable to generate PDF. "
+                    "Please enter Company License Number in the 'Company Info' tab."
+                )
+            )
+
+        if not (self.trade_license_activities or '').strip():
+            raise ValidationError(
+                _(
+                    "TRADE LICENSE NUMBER REQUIRED: Unable to generate PDF. "
+                    "Please enter Trade License Number/Details in the 'Company Info' tab."
+                )
+            )
+
+        if not self.incorporation_date:
+            raise ValidationError(
+                _(
+                    "CORPORATE INCORPORATION NUMBER REQUIRED: Unable to generate PDF. "
+                    "Please enter Corporate Incorporation Number/Date in the 'Company Info' tab."
+                )
+            )
+
         # Validate at least one signatory is selected
         has_signatory = any(
             getattr(self, f'signature_include_{i}', False)
@@ -2025,8 +2090,6 @@ class AuditReport(models.TransientModel):
         'company_license_number',
         'trade_license_activities',
         'incorporation_date',
-        'corporate_tax_registration_number',
-        'vat_registration_number',
         'corporate_tax_start_date',
         'corporate_tax_end_date',
         'implementing_regulations_freezone',
@@ -2080,8 +2143,6 @@ class AuditReport(models.TransientModel):
             'company_license_number': self.company_license_number or False,
             'trade_license_activities': self.trade_license_activities or False,
             'incorporation_date': self.incorporation_date or False,
-            'corporate_tax_registration_number': self.corporate_tax_registration_number or False,
-            'vat_registration_number': self.vat_registration_number or False,
             'corporate_tax_start_date': self.corporate_tax_start_date or False,
             'corporate_tax_end_date': self.corporate_tax_end_date or False,
             'implementing_regulations_freezone': self.implementing_regulations_freezone or False,
@@ -6041,7 +6102,7 @@ class AuditReport(models.TransientModel):
             ('110102', 'Furnitures and fixtures'),
             ('110103', 'Leasehold improvements'),
             ('110104', 'Vehicles'),
-            ('110105', 'IT equipments'),
+            ('110105', 'Computer equipments'),
             ('110106', 'Office equipments'),
         ]
         owned_ppe_subhead_labels = {code: label for code, label in OWNED_PPE_SUBHEADS}
@@ -6630,6 +6691,33 @@ class AuditReport(models.TransientModel):
             self._compose_tb_warning('Prior period', tb_diff_prior)
             if show_prior_year else False
         )
+
+        # Dividend > Retained Earnings warning
+        dividend_warning_current = False
+        dividend_warning_prior = False
+        if dividend_paid and retained_earnings_balance < dividend_paid:
+            dividend_warning_current = (
+                f"Current period: Dividend ({dividend_paid:,.2f}) exceeds retained earnings "
+                f"({retained_earnings_balance:,.2f})."
+            )
+        if show_prior_year and prior_dividend_paid and prev_retained_earnings_balance < prior_dividend_paid:
+            dividend_warning_prior = (
+                f"Prior period: Dividend ({prior_dividend_paid:,.2f}) exceeds retained earnings "
+                f"({prev_retained_earnings_balance:,.2f})."
+            )
+
+        # Combine warnings
+        if dividend_warning_current:
+            tb_warning_current = (
+                f"{tb_warning_current}\n{dividend_warning_current}"
+                if tb_warning_current else dividend_warning_current
+            )
+        if dividend_warning_prior:
+            tb_warning_prior = (
+                f"{tb_warning_prior}\n{dividend_warning_prior}"
+                if tb_warning_prior else dividend_warning_prior
+            )
+
         self.tb_diff_current = tb_diff_current
         self.tb_diff_prior = tb_diff_prior
         self.tb_warning_current = tb_warning_current or False

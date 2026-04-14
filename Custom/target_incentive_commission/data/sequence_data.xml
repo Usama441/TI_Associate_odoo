@@ -1,0 +1,15 @@
+<odoo noupdate="1">
+    <record id="seq_incentive_exception_request" model="ir.sequence">
+        <field name="name">Incentive Exception Request</field>
+        <field name="code">incentive.exception.request</field>
+        <field name="prefix">IER/%(year)s/</field>
+        <field name="padding">4</field>
+    </record>
+
+    <record id="seq_incentive_settlement" model="ir.sequence">
+        <field name="name">Incentive Settlement</field>
+        <field name="code">incentive.settlement</field>
+        <field name="prefix">SET/%(year)s/</field>
+        <field name="padding">4</field>
+    </record>
+</odoo>

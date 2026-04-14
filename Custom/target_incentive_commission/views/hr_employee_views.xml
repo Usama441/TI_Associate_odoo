@@ -1,0 +1,39 @@
+<odoo>
+    <record id="view_employee_form_incentive" model="ir.ui.view">
+        <field name="name">hr.employee.form.incentive.profile</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="object" name="action_view_incentive_targets" class="oe_stat_button" icon="fa-bullseye" groups="target_incentive_commission.group_incentive_user">
+                    <field name="target_line_count" widget="statinfo" string="Targets"/>
+                </button>
+                <button type="object" name="action_view_incentive_sources" class="oe_stat_button" icon="fa-database" groups="target_incentive_commission.group_incentive_user">
+                    <field name="source_record_count" widget="statinfo" string="Sources"/>
+                </button>
+                <button type="object" name="action_view_incentive_settlements" class="oe_stat_button" icon="fa-money" groups="target_incentive_commission.group_incentive_user">
+                    <field name="settlement_line_count" widget="statinfo" string="Settlement"/>
+                </button>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Incentive Profile" groups="target_incentive_commission.group_incentive_user">
+                    <group>
+                        <group>
+                            <field name="incentive_category_id"/>
+                            <field name="incentive_manager_id"/>
+                            <field name="salary_source_method"/>
+                            <field name="gross_salary_amount"/>
+                        </group>
+                        <group>
+                            <field name="incentive_segment_ids" widget="many2many_tags"/>
+                            <field name="company_currency_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="incentive_note" placeholder="Quarterly review notes, responsibilities, exceptions, or remarks..."/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

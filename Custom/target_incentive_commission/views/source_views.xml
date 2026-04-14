@@ -1,0 +1,134 @@
+<odoo>
+    <record id="view_incentive_source_list" model="ir.ui.view">
+        <field name="name">incentive.source.record.list</field>
+        <field name="model">incentive.source.record</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="receipt_date"/>
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="segment_id"/>
+                <field name="currency_id"/>
+                <field name="commission_net_amount"/>
+                <field name="profit_excl_gst"/>
+                <field name="gp_percent"/>
+                <field name="eligibility_status"/>
+                <field name="special_reward_eligible"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_incentive_source_form" model="ir.ui.view">
+        <field name="name">incentive.source.record.form</field>
+        <field name="model">incentive.source.record</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_confirm" string="Confirm" type="object" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_set_draft" string="Set to Draft" type="object" invisible="state == 'draft'"/>
+                    <button name="action_cancel" string="Cancel" type="object" invisible="state == 'cancelled'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="reference"/>
+                            <field name="review_period_id"/>
+                            <field name="employee_id"/>
+                            <field name="category_id" readonly="1"/>
+                            <field name="segment_id"/>
+                            <field name="principal_partner_id"/>
+                        </group>
+                        <group>
+                            <field name="receipt_date"/>
+                            <field name="currency_id"/>
+                            <field name="exchange_rate"/>
+                            <field name="company_currency_id" readonly="1"/>
+                            <field name="policy_id" readonly="1"/>
+                            <field name="eligibility_status" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Amounts">
+                            <group>
+                                <group string="Commission / Sales">
+                                    <field name="commission_amount"/>
+                                    <field name="commission_tax_amount"/>
+                                    <field name="commission_net_amount" readonly="1"/>
+                                    <field name="sales_amount"/>
+                                    <field name="profit_excl_gst"/>
+                                    <field name="assessed_basis_amount" readonly="1"/>
+                                </group>
+                                <group string="GP / Salary">
+                                    <field name="gross_salary_amount" readonly="1"/>
+                                    <field name="gp_percent"/>
+                                    <field name="gp_threshold" readonly="1"/>
+                                    <field name="gp_threshold_passed" readonly="1"/>
+                                    <field name="has_approved_exception" readonly="1"/>
+                                    <field name="approved_exception_id" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="New Principal / Special Reward">
+                            <group>
+                                <field name="new_principal_flag"/>
+                                <field name="order_value_for_qualification"/>
+                                <field name="qualifies_value_threshold" readonly="1"/>
+                                <field name="qualifying_order_count" readonly="1"/>
+                                <field name="special_reward_eligible" readonly="1"/>
+                            </group>
+                        </page>
+                        <page string="Exception Requests">
+                            <field name="exception_request_ids">
+                                <list editable="bottom">
+                                    <field name="name" readonly="1"/>
+                                    <field name="exception_type"/>
+                                    <field name="requested_by" readonly="1"/>
+                                    <field name="requested_override_amount"/>
+                                    <field name="state"/>
+                                    <field name="approved_by" readonly="1"/>
+                                    <field name="approved_on" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Notes">
+                            <field name="note"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_incentive_source_search" model="ir.ui.view">
+        <field name="name">incentive.source.record.search</field>
+        <field name="model">incentive.source.record</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="segment_id"/>
+                <field name="reference"/>
+                <field name="receipt_date"/>
+                <filter string="Eligible" name="eligible" domain="[('eligibility_status','=','eligible')]"/>
+                <filter string="Blocked by GP" name="blocked_gp" domain="[('eligibility_status','=','blocked_gp')]"/>
+                <filter string="Special Reward" name="special_reward" domain="[('special_reward_eligible','=',True)]"/>
+                <filter string="Group by Employee" name="group_employee" context="{'group_by':'employee_id'}"/>
+                <filter string="Group by Segment" name="group_segment" context="{'group_by':'segment_id'}"/>
+                <filter string="Group by Receipt Date" name="group_receipt" context="{'group_by':'receipt_date'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_incentive_source" model="ir.actions.act_window">
+        <field name="name">Source Records</field>
+        <field name="res_model">incentive.source.record</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_incentive_source_search"/>
+    </record>
+
+    <menuitem id="menu_incentive_sources" name="Source Records" parent="menu_incentive_root" action="action_incentive_source" sequence="30" groups="target_incentive_commission.group_incentive_user"/>
+</odoo>

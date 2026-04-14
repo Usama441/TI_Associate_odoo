@@ -1,0 +1,144 @@
+<odoo>
+    <record id="paperformat_incentive" model="report.paperformat">
+        <field name="name">Incentive Paperformat</field>
+        <field name="default">False</field>
+        <field name="format">A4</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">20</field>
+        <field name="margin_bottom">15</field>
+        <field name="margin_left">10</field>
+        <field name="margin_right">10</field>
+    </record>
+
+    <record id="action_report_settlement_summary" model="ir.actions.report">
+        <field name="name">Settlement Summary</field>
+        <field name="model">incentive.settlement</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">target_incentive_commission.report_settlement_summary</field>
+        <field name="report_file">target_incentive_commission.report_settlement_summary</field>
+        <field name="paperformat_id" ref="paperformat_incentive"/>
+    </record>
+
+    <record id="action_report_settlement_detail" model="ir.actions.report">
+        <field name="name">Settlement Detail</field>
+        <field name="model">incentive.settlement</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">target_incentive_commission.report_settlement_detail</field>
+        <field name="report_file">target_incentive_commission.report_settlement_detail</field>
+        <field name="paperformat_id" ref="paperformat_incentive"/>
+    </record>
+
+    <template id="report_settlement_summary">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Settlement Summary</h2>
+                        <p>
+                            <strong>Settlement:</strong> <span t-esc="o.name"/>
+                            <br/>
+                            <strong>Period:</strong> <span t-esc="o.period_id.name"/>
+                            <br/>
+                            <strong>Date Range:</strong> <span t-esc="o.date_start"/> - <span t-esc="o.date_end"/>
+                            <br/>
+                            <strong>Status:</strong> <span t-esc="o.state"/>
+                        </p>
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Line Type</th>
+                                    <th>Segment</th>
+                                    <th>Achievement %</th>
+                                    <th>Base</th>
+                                    <th>Bonus</th>
+                                    <th>Special Reward</th>
+                                    <th>Final Payable</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="o.line_ids" t-as="line">
+                                    <td><span t-esc="line.employee_id.name"/></td>
+                                    <td><span t-esc="dict(line._fields['line_type'].selection).get(line.line_type)"/></td>
+                                    <td><span t-esc="line.segment_id.name or '-'"/></td>
+                                    <td class="text-end"><span t-esc="'%.2f' % (line.achievement_percent or 0.0)"/></td>
+                                    <td class="text-end"><span t-esc="'%.2f' % (line.base_amount_pkr or 0.0)"/></td>
+                                    <td class="text-end"><span t-esc="'%.2f' % (line.bonus_amount_pkr or 0.0)"/></td>
+                                    <td class="text-end"><span t-esc="'%.2f' % (line.special_reward_amount_pkr or 0.0)"/></td>
+                                    <td class="text-end"><span t-esc="'%.2f' % (line.final_payable_amount_pkr or 0.0)"/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="mt16">
+                            <strong>Total Final Amount:</strong>
+                            <span t-esc="'%.2f' % (o.total_final_amount or 0.0)"/>
+                        </p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_settlement_detail">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Settlement Detail</h2>
+                        <p>
+                            <strong>Settlement:</strong> <span t-esc="o.name"/>
+                            <br/>
+                            <strong>Period:</strong> <span t-esc="o.period_id.name"/>
+                            <br/>
+                            <strong>Status:</strong> <span t-esc="o.state"/>
+                        </p>
+                        <t t-foreach="o.line_ids" t-as="line">
+                            <div class="mt16 mb16">
+                                <h4>
+                                    <span t-esc="line.employee_id.name"/> -
+                                    <span t-esc="line.segment_id.name or 'Bonus'"/>
+                                </h4>
+                                <table class="table table-sm table-bordered">
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Line Type</strong></td>
+                                            <td><span t-esc="dict(line._fields['line_type'].selection).get(line.line_type)"/></td>
+                                            <td><strong>Category</strong></td>
+                                            <td><span t-esc="line.category_id.name or '-'"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Policy</strong></td>
+                                            <td><span t-esc="line.policy_id.name or '-'"/></td>
+                                            <td><strong>Slab</strong></td>
+                                            <td><span t-esc="line.policy_line_id.name or '-'"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Achievement %</strong></td>
+                                            <td><span t-esc="'%.2f' % (line.achievement_percent or 0.0)"/></td>
+                                            <td><strong>Eligibility</strong></td>
+                                            <td><span t-esc="line.eligibility_status"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Base Amount</strong></td>
+                                            <td><span t-esc="'%.2f' % (line.base_amount_pkr or 0.0)"/></td>
+                                            <td><strong>Bonus Amount</strong></td>
+                                            <td><span t-esc="'%.2f' % (line.bonus_amount_pkr or 0.0)"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Special Reward</strong></td>
+                                            <td><span t-esc="'%.2f' % (line.special_reward_amount_pkr or 0.0)"/></td>
+                                            <td><strong>Final Payable</strong></td>
+                                            <td><span t-esc="'%.2f' % (line.final_payable_amount_pkr or 0.0)"/></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <p><strong>Calculation Breakdown</strong></p>
+                                <pre style="white-space: pre-wrap;"><span t-esc="line.calculation_breakdown or ''"/></pre>
+                            </div>
+                        </t>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

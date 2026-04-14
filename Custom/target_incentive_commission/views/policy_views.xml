@@ -1,0 +1,190 @@
+<odoo>
+    <record id="view_incentive_policy_list" model="ir.ui.view">
+        <field name="name">incentive.policy.list</field>
+        <field name="model">incentive.policy</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence"/>
+                <field name="name"/>
+                <field name="category_id"/>
+                <field name="segment_id"/>
+                <field name="gp_minimum"/>
+                <field name="bonus_if_all_segments_100"/>
+                <field name="special_reward_percent"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_incentive_policy_form" model="ir.ui.view">
+        <field name="name">incentive.policy.form</field>
+        <field name="model">incentive.policy</field>
+        <field name="arch" type="xml">
+            <form string="Incentive Policy">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="category_id"/>
+                            <field name="segment_id"/>
+                            <field name="approver_group_id"/>
+                            <field name="settle_every_months"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="gp_minimum"/>
+                            <field name="allow_gp_exception"/>
+                            <field name="allow_manual_override"/>
+                        </group>
+                        <group>
+                            <field name="bonus_if_all_segments_100"/>
+                            <field name="special_reward_enabled"/>
+                            <field name="special_reward_percent" invisible="not special_reward_enabled"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Achievement Slabs">
+                            <field name="line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence"/>
+                                    <field name="name"/>
+                                    <field name="achievement_from"/>
+                                    <field name="achievement_to"/>
+                                    <field name="calculation_type"/>
+                                    <field name="percentage"/>
+                                    <field name="salary_multiplier"/>
+                                    <field name="fixed_amount"/>
+                                    <field name="description"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Notes">
+                            <field name="note" placeholder="Policy notes, exceptions, approval routing..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_incentive_policy_search" model="ir.ui.view">
+        <field name="name">incentive.policy.search</field>
+        <field name="model">incentive.policy</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="category_id"/>
+                <field name="segment_id"/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <group>
+                    <filter string="Category" name="group_category" context="{'group_by': 'category_id'}"/>
+                    <filter string="Segment" name="group_segment" context="{'group_by': 'segment_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_incentive_category_list" model="ir.ui.view">
+        <field name="name">incentive.employee.category.list</field>
+        <field name="model">incentive.employee.category</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_incentive_category_form" model="ir.ui.view">
+        <field name="name">incentive.employee.category.form</field>
+        <field name="model">incentive.employee.category</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="sequence"/>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="active"/>
+                    </group>
+                    <group>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_incentive_segment_list" model="ir.ui.view">
+        <field name="name">incentive.segment.list</field>
+        <field name="model">incentive.segment</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="basis_type"/>
+                <field name="gp_minimum"/>
+                <field name="use_receipt_exchange"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_incentive_segment_form" model="ir.ui.view">
+        <field name="name">incentive.segment.form</field>
+        <field name="model">incentive.segment</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="sequence"/>
+                        <field name="name"/>
+                        <field name="code"/>
+                        <field name="basis_type"/>
+                        <field name="gp_minimum"/>
+                        <field name="use_receipt_exchange"/>
+                        <field name="active"/>
+                    </group>
+                    <group>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_incentive_policy" model="ir.actions.act_window">
+        <field name="name">Incentive Policies</field>
+        <field name="res_model">incentive.policy</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_incentive_policy_search"/>
+    </record>
+
+    <record id="action_incentive_category" model="ir.actions.act_window">
+        <field name="name">Employee Categories</field>
+        <field name="res_model">incentive.employee.category</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="action_incentive_segment" model="ir.actions.act_window">
+        <field name="name">Business Segments</field>
+        <field name="res_model">incentive.segment</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_incentive_root" name="Incentive Management" sequence="10" groups="target_incentive_commission.group_incentive_user"/>
+    <menuitem id="menu_incentive_configuration" name="Configuration" parent="menu_incentive_root" sequence="90" groups="target_incentive_commission.group_incentive_manager"/>
+    <menuitem id="menu_incentive_categories" name="Employee Categories" parent="menu_incentive_configuration" action="action_incentive_category" sequence="10" groups="target_incentive_commission.group_incentive_manager"/>
+    <menuitem id="menu_incentive_segments" name="Business Segments" parent="menu_incentive_configuration" action="action_incentive_segment" sequence="20" groups="target_incentive_commission.group_incentive_manager"/>
+    <menuitem id="menu_incentive_policies" name="Policies" parent="menu_incentive_configuration" action="action_incentive_policy" sequence="30" groups="target_incentive_commission.group_incentive_manager"/>
+</odoo>

@@ -1,0 +1,162 @@
+<odoo>
+    <record id="view_incentive_settlement_list" model="ir.ui.view">
+        <field name="name">incentive.settlement.list</field>
+        <field name="model">incentive.settlement</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="period_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="line_count"/>
+                <field name="total_final_amount"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_incentive_settlement_form" model="ir.ui.view">
+        <field name="name">incentive.settlement.form</field>
+        <field name="model">incentive.settlement</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_generate_lines" string="Generate Lines" type="object" class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_review" string="Mark Reviewed" type="object" invisible="state != 'draft'"/>
+                    <button name="action_approve" string="Approve" type="object" invisible="state != 'reviewed'" groups="target_incentive_commission.group_incentive_manager"/>
+                    <button name="action_mark_paid" string="Mark Paid" type="object" invisible="state != 'approved'" groups="target_incentive_commission.group_incentive_manager"/>
+                    <button name="action_set_draft" string="Reset to Draft" type="object" invisible="state == 'draft'" groups="target_incentive_commission.group_incentive_manager"/>
+                    <button name="action_cancel" string="Cancel" type="object" invisible="state == 'cancelled'" groups="target_incentive_commission.group_incentive_manager"/>
+                    <button name="%(action_report_settlement_summary)d" string="Print Summary" type="action"/>
+                    <button name="%(action_report_settlement_detail)d" string="Print Detail" type="action"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,reviewed,approved,paid,cancelled"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="1"/>
+                            <field name="period_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="date_start" readonly="1"/>
+                            <field name="date_end" readonly="1"/>
+                            <field name="line_count" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="total_base_amount" readonly="1"/>
+                            <field name="total_bonus_amount" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="total_special_reward_amount" readonly="1"/>
+                            <field name="total_final_amount" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Settlement Lines">
+                            <field name="line_ids">
+                                <list>
+                                    <field name="line_type"/>
+                                    <field name="employee_id"/>
+                                    <field name="category_id"/>
+                                    <field name="segment_id"/>
+                                    <field name="policy_id"/>
+                                    <field name="policy_line_id"/>
+                                    <field name="achievement_percent"/>
+                                    <field name="base_amount_pkr"/>
+                                    <field name="bonus_amount_pkr"/>
+                                    <field name="special_reward_amount_pkr"/>
+                                    <field name="manual_override_active"/>
+                                    <field name="final_payable_amount_pkr"/>
+                                    <field name="eligibility_status"/>
+                                    <field name="exception_status"/>
+                                </list>
+                                <form string="Settlement Line">
+                                    <sheet>
+                                        <group>
+                                            <group>
+                                                <field name="line_type"/>
+                                                <field name="employee_id"/>
+                                                <field name="category_id"/>
+                                                <field name="segment_id"/>
+                                                <field name="policy_id"/>
+                                                <field name="policy_line_id"/>
+                                            </group>
+                                            <group>
+                                                <field name="achievement_percent"/>
+                                                <field name="target_total"/>
+                                                <field name="achievement_total"/>
+                                                <field name="source_record_count"/>
+                                                <field name="eligibility_status"/>
+                                                <field name="exception_status"/>
+                                            </group>
+                                        </group>
+                                        <group>
+                                            <group string="Amounts">
+                                                <field name="gross_salary_amount"/>
+                                                <field name="base_amount_source_currency"/>
+                                                <field name="base_amount_pkr"/>
+                                                <field name="bonus_amount_pkr"/>
+                                                <field name="special_reward_amount_pkr"/>
+                                                <field name="final_payable_amount_pkr" readonly="1"/>
+                                            </group>
+                                            <group string="Override">
+                                                <field name="manual_override_active"/>
+                                                <field name="manual_override_amount_pkr" required="manual_override_active"/>
+                                                <field name="manual_override_reason"/>
+                                                <field name="blocked_reason" readonly="1"/>
+                                            </group>
+                                        </group>
+                                        <notebook>
+                                            <page string="Calculation Breakdown">
+                                                <field name="calculation_breakdown" readonly="1"/>
+                                            </page>
+                                            <page string="Source Records">
+                                                <button name="action_open_sources" string="Open Source Records" type="object" class="btn-secondary" invisible="not source_record_ids"/>
+                                                <field name="source_record_ids" widget="many2many_tags" readonly="1"/>
+                                            </page>
+                                        </notebook>
+                                    </sheet>
+                                    <chatter/>
+                                </form>
+                            </field>
+                        </page>
+                        <page string="Notes">
+                            <field name="note"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_incentive_settlement_search" model="ir.ui.view">
+        <field name="name">incentive.settlement.search</field>
+        <field name="model">incentive.settlement</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="period_id"/>
+                <field name="state"/>
+                <filter string="Draft" name="draft" domain="[('state','=','draft')]"/>
+                <filter string="Approved" name="approved" domain="[('state','=','approved')]"/>
+                <group>
+                    <filter string="State" name="group_state" context="{'group_by':'state'}"/>
+                    <filter string="Period" name="group_period" context="{'group_by':'period_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_incentive_settlement" model="ir.actions.act_window">
+        <field name="name">Settlements</field>
+        <field name="res_model">incentive.settlement</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_incentive_settlement_search"/>
+    </record>
+
+    <menuitem id="menu_incentive_settlements" name="Settlements" parent="menu_incentive_root" action="action_incentive_settlement" sequence="50" groups="target_incentive_commission.group_incentive_user"/>
+</odoo>

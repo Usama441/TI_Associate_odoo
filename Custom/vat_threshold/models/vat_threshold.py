@@ -358,6 +358,11 @@ class VatThreshold(models.Model):
             if row.get('account_id')
         }
 
+    def _get_account_balance(self, company, account_ids, date_from=None, date_to=None):
+        """Return the total balance for a set of accounts (sum of all account balances)."""
+        balances = self._get_account_balances(company, account_ids, date_from=date_from, date_to=date_to)
+        return sum(balances.values()) if balances else 0.0
+
     def _ensure_system_user(self):
         if self.env.uid != SUPERUSER_ID and not self.env.user.has_group('base.group_system'):
             raise AccessError(_('This action is restricted to system administrators.'))

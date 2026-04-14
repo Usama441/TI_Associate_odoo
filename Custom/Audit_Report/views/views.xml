@@ -23,7 +23,8 @@
                                            invisible="prior_year_mode != 'manual'"
                                            required="prior_year_mode == 'manual'"/>
                                     <field name="soce_prior_opening_label_date"
-                                           invisible="audit_period_category in ('cessation_1y', 'normal_1y', 'dormant_1y')"/>
+                                           invisible="audit_period_category in ('cessation_1y', 'normal_1y', 'dormant_1y')"
+                                           required="audit_period_category not in ('cessation_1y', 'normal_1y', 'dormant_1y')"/>
                                     <field name="soce_warning_message"
                                            readonly="1"
                                            nolabel="1"
@@ -202,21 +203,19 @@
                             <group>
                                 <group string="Company and Free Zone Information">
                                     <field name="company_id" readonly="1"/>
-                                    <field name="company_free_zone"/>
+                                    <field name="company_free_zone" required="1"/>
                                     <field name="company_street" string="Address"/>
                                     <field name="company_city"/>
-                                    <field name="company_license_number"/>
+                                    <field name="company_license_number" required="1"/>
                                     <field name="portal_account_no"
                                            invisible="company_free_zone != 'Dubai Multi Commodities Centre Free Zone'"
                                            required="company_free_zone == 'Dubai Multi Commodities Centre Free Zone'"/>
-                                    <field name="trade_license_activities"/>
+                                    <field name="trade_license_activities" required="1"/>
                                     <field name="business_activity_include_services"/>
                                     <field name="business_activity_include_providing"/>
-                                    <field name="incorporation_date"/>
+                                    <field name="incorporation_date" required="1"/>
                                 </group>
                                 <group string="Tax Information">
-                                    <field name="corporate_tax_registration_number"/>
-                                    <field name="vat_registration_number"/>
                                     <field name="corporate_tax_start_date"/>
                                     <field name="corporate_tax_end_date"/>
                                 </group>

@@ -25,11 +25,9 @@
                     <group string="Tax Information">
                         <group>
                             <field name="corporate_tax_registration_number"/>
+                            <field name="vat_registration_number"/>
                             <field name="corporate_tax_start_date"/>
                             <field name="corporate_tax_end_date"/>
-                        </group>
-                        <group>
-                            <field name="vat_registration_number"/>
                         </group>
                     </group>
                     <group string="Free Zone Regulations">

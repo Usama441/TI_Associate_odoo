@@ -11,6 +11,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from .native_trial_balance_mixin import NativeTrialBalanceMixin
 from ..utils import clean_bank_narration
 
 try:
@@ -27,9 +28,49 @@ except ImportError:
 _logger = logging.getLogger(__name__)
 
 
-class AuditExcelExportWizard(models.TransientModel):
+class AuditExcelExportWizard(NativeTrialBalanceMixin, models.TransientModel):
     _name = 'audit.excel.export.wizard'
     _description = 'Audit Excel Export Wizard'
+    _SOCF_CT_EXPENSE_ACCOUNT_CODES = ('51270101',)
+    _SOCF_CURRENT_LIABILITY_PREFIXES = (
+        '220201',
+        '220301',
+        '220302',
+        '220303',
+        '220101',
+        '220103',
+    )
+    _SOCF_EOSB_LIABILITY_CODE = '21040101'
+    _SOCF_SECURITY_DEPOSIT_ACCOUNT_CODE = '11050102'
+    _SOCF_RELATED_PARTY_LOAN_PREFIX = '2102'
+    _LINKED_SHEET_DEPENDENCIES = {
+        'Trial Balance': ('Client Details',),
+        'SOCI': ('Client Details', 'Trial Balance'),
+        'SOCE': ('Client Details', 'Trial Balance', 'SOCI'),
+        'SOFP': ('Client Details', 'Trial Balance', 'SOCI', 'SOCE'),
+        'SOCF': ('Client Details', 'Trial Balance', 'SOCI'),
+        'Summary Sheet': ('Client Details', 'Trial Balance', 'SOCI', 'SOCE', 'SOFP'),
+    }
+    _WORKBOOK_SHEET_ORDER = (
+        'Client Details',
+        'General Ledger',
+        'Trial Balance',
+        'SOCI',
+        'SOCE',
+        'SOFP',
+        'SOCF',
+        'PPE',
+        'Prepayment',
+        'Bank Summary',
+        'Customer Invoices',
+        'Aged Receivables',
+        'Vendor Bills',
+        'Aged Payables',
+        'VAT Control',
+        'Accruals',
+        'Summary Sheet',
+        'Share Capital',
+    )
 
     _DATA_SHEET_SEQUENCE = (
         'General Ledger',
@@ -56,24 +97,48 @@ class AuditExcelExportWizard(models.TransientModel):
     # Existing generated tabs map to the legacy names as follows:
     # Sale -> Customer Invoices, SL Control -> Aged Receivables,
     # Purchase -> Vendor Bills, PL Control -> Aged Payables.
+    # PPE and Bank Summary are currently exported as empty placeholders.
     _EXPORTABLE_SHEET_KEYS = (
         ('client_details', 'Client Details'),
+        ('summary_sheet', 'Summary Sheet'),
         ('general_ledger', 'General Ledger'),
         ('trial_balance', 'Trial Balance'),
         ('sofp', 'SOFP'),
         ('soci', 'SOCI'),
         ('soce', 'SOCE'),
         ('socf', 'SOCF'),
+        ('ppe', 'PPE'),
         ('prepayment', 'Prepayment'),
-        ('customer_invoices', 'Customer Invoices'),
-        ('aged_receivables', 'Aged Receivables'),
-        ('vendor_bills', 'Vendor Bills'),
-        ('aged_payables', 'Aged Payables'),
-        ('vat_control', 'VAT Control'),
-        ('accruals', 'Accruals'),
-        ('summary_sheet', 'Summary Sheet'),
+        ('customer_invoices', 'Sale'),
+        ('aged_receivables', 'SL Control'),
+        ('vendor_bills', 'Purchase'),
+        ('aged_payables', 'PL Control'),
+        ('bank_summary', 'Bank Summary'),
         ('share_capital', 'Share Capital'),
+        ('accruals', 'Accruals'),
+        ('vat_control', 'VAT Control'),
     )
+    _EXPORT_SHEET_NAME_BY_KEY = {
+        'client_details': 'Client Details',
+        'summary_sheet': 'Summary Sheet',
+        'general_ledger': 'General Ledger',
+        'trial_balance': 'Trial Balance',
+        'sofp': 'SOFP',
+        'soci': 'SOCI',
+        'soce': 'SOCE',
+        'socf': 'SOCF',
+        'ppe': 'PPE',
+        'prepayment': 'Prepayment',
+        # Keep dropdown labels as legacy names, but map to generated sheet names.
+        'customer_invoices': 'Customer Invoices',
+        'aged_receivables': 'Aged Receivables',
+        'vendor_bills': 'Vendor Bills',
+        'aged_payables': 'Aged Payables',
+        'bank_summary': 'Bank Summary',
+        'share_capital': 'Share Capital',
+        'accruals': 'Accruals',
+        'vat_control': 'VAT Control',
+    }
 
     company_ids = fields.Many2many(
         'res.company',
@@ -91,10 +156,14 @@ class AuditExcelExportWizard(models.TransientModel):
         required=True,
         default=lambda self: fields.Date.context_today(self),
     )
-    aged_as_of_date = fields.Date(
-        string='Aged As Of Date',
+    year_span = fields.Selection(
+        [
+            ('1y', '1 Year'),
+            ('2y', '2 Years (with prior year)'),
+        ],
+        string='Export Period',
         required=True,
-        default=lambda self: fields.Date.context_today(self),
+        default='2y',
     )
     balance_sheet_date_mode = fields.Selection(
         [
@@ -125,19 +194,6 @@ class AuditExcelExportWizard(models.TransientModel):
     )
     prior_date_start = fields.Date(string='Prior Date Start')
     prior_date_end = fields.Date(string='Prior Date End')
-    audit_period_category = fields.Selection(
-        [
-            ('cessation_2y', '2 Years Cessation'),
-            ('cessation_1y', '1 Year Cessation'),
-            ('normal_1y', '1 Year Normal'),
-            ('normal_2y', '2 Years Normal'),
-            ('dormant_1y', '1 Year Dormant'),
-            ('dormant_2y', '2 Years Dormant'),
-        ],
-        string='Audit Period Category',
-        required=True,
-        default='normal_2y',
-    )
     use_previous_settings = fields.Boolean(
         string='Use Previous Settings',
         default=True,
@@ -149,9 +205,7 @@ class AuditExcelExportWizard(models.TransientModel):
         default='all',
     )
 
-    journal_ids = fields.Many2many('account.journal', string='Journals')
-    partner_ids = fields.Many2many('res.partner', string='Partners')
-    analytic_account_ids = fields.Many2many('account.analytic.account', string='Analytic Accounts')
+ 
 
     include_draft_entries = fields.Boolean(string='Include Draft Entries', default=False)
     unfold_all = fields.Boolean(string='Unfold All', default=True)
@@ -200,7 +254,7 @@ class AuditExcelExportWizard(models.TransientModel):
     @api.constrains('prior_year_mode', 'prior_date_start', 'prior_date_end')
     def _check_prior_date_range(self):
         for wizard in self:
-            if wizard._is_one_year_period_category():
+            if wizard._is_one_year_export():
                 continue
             if wizard.prior_year_mode != 'manual':
                 continue
@@ -218,10 +272,18 @@ class AuditExcelExportWizard(models.TransientModel):
     @staticmethod
     def _normalize_year_end_vals(vals):
         normalized_vals = dict(vals or {})
-        if 'date_to' in normalized_vals:
-            normalized_vals['aged_as_of_date'] = normalized_vals.get('date_to')
-        elif 'aged_as_of_date' in normalized_vals:
+        if 'aged_as_of_date' in normalized_vals and 'date_to' not in normalized_vals:
             normalized_vals['date_to'] = normalized_vals.get('aged_as_of_date')
+        normalized_vals.pop('aged_as_of_date', None)
+        normalized_vals.pop('journal_ids', None)
+        normalized_vals.pop('partner_ids', None)
+        normalized_vals.pop('analytic_account_ids', None)
+
+        legacy_period_category = normalized_vals.pop('audit_period_category', None)
+        if 'year_span' not in normalized_vals:
+            mapped_year_span = AuditExcelExportWizard._legacy_period_category_to_year_span(legacy_period_category)
+            if mapped_year_span:
+                normalized_vals['year_span'] = mapped_year_span
         return normalized_vals
 
     @api.model_create_multi
@@ -233,20 +295,9 @@ class AuditExcelExportWizard(models.TransientModel):
         normalized_vals = self._normalize_year_end_vals(vals)
         return super().write(normalized_vals)
 
-    @api.onchange('date_to')
-    def _onchange_date_to_sync_aged_as_of_date(self):
-        if self.date_to and self.aged_as_of_date != self.date_to:
-            self.aged_as_of_date = self.date_to
-
-    @api.onchange('aged_as_of_date')
-    def _onchange_aged_as_of_date_sync_date_to(self):
-        if self.aged_as_of_date and self.date_to != self.aged_as_of_date:
-            self.date_to = self.aged_as_of_date
-
     def _get_effective_year_end_date(self):
         self.ensure_one()
-        year_end_date = self.date_to or self.aged_as_of_date
-        return fields.Date.to_date(year_end_date) if year_end_date else False
+        return fields.Date.to_date(self.date_to) if self.date_to else False
 
     def _previous_settings_key(self):
         return (
@@ -269,6 +320,15 @@ class AuditExcelExportWizard(models.TransientModel):
         return {value for value, _label in selection}
 
     @staticmethod
+    def _legacy_period_category_to_year_span(value):
+        category = (value or '').strip().lower()
+        if category.endswith('_1y'):
+            return '1y'
+        if category.endswith('_2y'):
+            return '2y'
+        return False
+
+    @staticmethod
     def _safe_date_from_settings(value):
         if not value:
             return False
@@ -283,17 +343,13 @@ class AuditExcelExportWizard(models.TransientModel):
             'company_ids': self.company_ids.ids,
             'date_from': self.date_from.isoformat() if self.date_from else False,
             'date_to': self.date_to.isoformat() if self.date_to else False,
-            'aged_as_of_date': self.aged_as_of_date.isoformat() if self.aged_as_of_date else False,
+            'year_span': self.year_span,
             'balance_sheet_date_mode': self.balance_sheet_date_mode,
             'prior_year_mode': self.prior_year_mode,
             'prior_balance_sheet_date_mode': self.prior_balance_sheet_date_mode,
-            'audit_period_category': self.audit_period_category,
             'export_sheet_key': self.export_sheet_key,
             'prior_date_start': self.prior_date_start.isoformat() if self.prior_date_start else False,
             'prior_date_end': self.prior_date_end.isoformat() if self.prior_date_end else False,
-            'journal_ids': self.journal_ids.ids,
-            'partner_ids': self.partner_ids.ids,
-            'analytic_account_ids': self.analytic_account_ids.ids,
             'include_draft_entries': self.include_draft_entries,
             'unfold_all': self.unfold_all,
             'hide_zero_lines': self.hide_zero_lines,
@@ -320,11 +376,17 @@ class AuditExcelExportWizard(models.TransientModel):
         if not data:
             return res
 
+        if 'year_span' in fields_list:
+            year_span = data.get('year_span')
+            if year_span not in self._selection_values('year_span'):
+                year_span = self._legacy_period_category_to_year_span(data.get('audit_period_category'))
+            if year_span in self._selection_values('year_span'):
+                res['year_span'] = year_span
+
         selection_fields = (
             'balance_sheet_date_mode',
             'prior_year_mode',
             'prior_balance_sheet_date_mode',
-            'audit_period_category',
             'aging_based_on',
             'invoice_bill_scope',
             'export_sheet_key',
@@ -336,7 +398,6 @@ class AuditExcelExportWizard(models.TransientModel):
         date_fields = (
             'date_from',
             'date_to',
-            'aged_as_of_date',
             'prior_date_start',
             'prior_date_end',
         )
@@ -346,18 +407,8 @@ class AuditExcelExportWizard(models.TransientModel):
                 if date_value:
                     res[field_name] = date_value
 
-        year_end_date = res.get('date_to') or res.get('aged_as_of_date')
-        if year_end_date:
-            if 'date_to' in fields_list:
-                res['date_to'] = year_end_date
-            if 'aged_as_of_date' in fields_list:
-                res['aged_as_of_date'] = year_end_date
-
         m2m_fields = (
             'company_ids',
-            'journal_ids',
-            'partner_ids',
-            'analytic_account_ids',
         )
         for field_name in m2m_fields:
             if field_name in fields_list and isinstance(data.get(field_name), list):
@@ -392,11 +443,16 @@ class AuditExcelExportWizard(models.TransientModel):
     def _apply_previous_settings(self, data):
         self.ensure_one()
 
+        year_span = data.get('year_span')
+        if year_span not in self._selection_values('year_span'):
+            year_span = self._legacy_period_category_to_year_span(data.get('audit_period_category'))
+        if year_span in self._selection_values('year_span'):
+            self.year_span = year_span
+
         selection_fields = (
             'balance_sheet_date_mode',
             'prior_year_mode',
             'prior_balance_sheet_date_mode',
-            'audit_period_category',
             'aging_based_on',
             'invoice_bill_scope',
             'export_sheet_key',
@@ -409,7 +465,6 @@ class AuditExcelExportWizard(models.TransientModel):
         date_fields = (
             'date_from',
             'date_to',
-            'aged_as_of_date',
             'prior_date_start',
             'prior_date_end',
         )
@@ -418,16 +473,8 @@ class AuditExcelExportWizard(models.TransientModel):
             if date_value:
                 setattr(self, field_name, date_value)
 
-        year_end_date = self.date_to or self.aged_as_of_date
-        if year_end_date:
-            self.date_to = year_end_date
-            self.aged_as_of_date = year_end_date
-
         m2m_models = (
             ('company_ids', 'res.company'),
-            ('journal_ids', 'account.journal'),
-            ('partner_ids', 'res.partner'),
-            ('analytic_account_ids', 'account.analytic.account'),
         )
         for field_name, model_name in m2m_models:
             values = data.get(field_name)
@@ -478,7 +525,8 @@ class AuditExcelExportWizard(models.TransientModel):
         gl_overrides = self._parse_json_options(self.gl_options_json, _('General Ledger Options Override'))
         ar_overrides = self._parse_json_options(self.aged_receivable_options_json, _('Aged Receivable Options Override'))
         ap_overrides = self._parse_json_options(self.aged_payable_options_json, _('Aged Payable Options Override'))
-        selected_sheet_names = self._get_selected_sheet_names()
+        requested_sheet_names = self._get_selected_sheet_names()
+        selected_sheet_names = self._expand_selected_sheet_dependencies(requested_sheet_names)
         include_trial_balance = 'Trial Balance' in set(selected_sheet_names)
 
         # Stage A: build data payloads for generated data sheets + trial balance rows.
@@ -508,9 +556,9 @@ class AuditExcelExportWizard(models.TransientModel):
         # Stage F: populate template tabs with wizard/company context values.
         self._stage_f_populate_template_context(stage_c_context)
 
-        # Stage G is intentionally skipped for statement parity with Audit Report.
-        # Stage G2: overwrite SOFP/SOCI/SOCE/SOCF with Audit Report computed values.
-        self._stage_g2_populate_statements_from_audit_report(stage_c_context, selected_sheet_names)
+        # Stage G: build the live-link workbook graph from Trial Balance helper formulas.
+        self._stage_g_link_statement_sheets_to_trial_balance(stage_c_context, stage_a_payload['trial_balance'])
+        self._stage_g_hide_prior_year_live_link_columns(stage_c_context, selected_sheet_names)
 
         # Stage H: keep only requested sheet(s) in the final workbook.
         self._stage_h_filter_workbook_sheets(stage_c_context, selected_sheet_names)
@@ -521,22 +569,49 @@ class AuditExcelExportWizard(models.TransientModel):
         # Stage I: finalize binary and keep existing wizard download UX.
         return self._stage_g_finalize_binary_download(
             stage_c_context['workbook'],
-            selected_sheet_names=selected_sheet_names,
+            selected_sheet_names=requested_sheet_names,
         )
 
     @classmethod
     def _get_export_sheet_name_map(cls):
-        return dict(cls._EXPORTABLE_SHEET_KEYS)
+        sheet_name_map = {}
+        for key, _label in cls._EXPORTABLE_SHEET_KEYS:
+            sheet_name = cls._EXPORT_SHEET_NAME_BY_KEY.get(key)
+            if sheet_name:
+                sheet_name_map[key] = sheet_name
+        return sheet_name_map
 
     def _get_selected_sheet_names(self):
         self.ensure_one()
         sheet_name_map = self._get_export_sheet_name_map()
         if self.export_sheet_key == 'all':
-            return [sheet_name_map[key] for key, _label in self._EXPORTABLE_SHEET_KEYS]
+            sheet_names = [sheet_name_map[key] for key, _label in self._EXPORTABLE_SHEET_KEYS if key in sheet_name_map]
+            if not sheet_names:
+                raise ValidationError(_('No exportable sheets are configured.'))
+            return self._order_sheet_names_for_workbook(sheet_names)
         sheet_name = sheet_name_map.get(self.export_sheet_key)
         if not sheet_name:
             raise ValidationError(_('Please select a valid sheet to export.'))
         return [sheet_name]
+
+    def _expand_selected_sheet_dependencies(self, selected_sheet_names):
+        expanded = set(selected_sheet_names or [])
+        queue = list(selected_sheet_names or [])
+        while queue:
+            sheet_name = queue.pop(0)
+            for dependency in self._LINKED_SHEET_DEPENDENCIES.get(sheet_name, ()):
+                if dependency in expanded:
+                    continue
+                expanded.add(dependency)
+                queue.append(dependency)
+        return self._order_sheet_names_for_workbook(expanded)
+
+    @classmethod
+    def _order_sheet_names_for_workbook(cls, sheet_names):
+        remaining = list(dict.fromkeys(sheet_names or []))
+        ordered = [name for name in cls._WORKBOOK_SHEET_ORDER if name in remaining]
+        ordered.extend(name for name in remaining if name not in ordered)
+        return ordered
 
     def _parse_json_options(self, raw_value, field_label):
         if not raw_value:
@@ -552,16 +627,15 @@ class AuditExcelExportWizard(models.TransientModel):
 
         return parsed
 
-    def _is_one_year_period_category(self):
-        category = (self.audit_period_category or '').strip().lower()
-        return category.endswith('_1y')
+    def _is_one_year_export(self):
+        return (self.year_span or '2y') == '1y'
 
     def _get_reporting_periods(self):
         self.ensure_one()
         date_start = fields.Date.to_date(self.date_from) if self.date_from else False
         date_end = self._get_effective_year_end_date()
-        period_category = (self.audit_period_category or 'normal_2y').strip().lower()
-        show_prior_year = not period_category.endswith('_1y')
+        year_span = self.year_span or '2y'
+        show_prior_year = year_span == '2y'
         prior_year_mode = self.prior_year_mode or 'auto'
         prior_balance_sheet_date_mode = self.prior_balance_sheet_date_mode or 'end_only'
 
@@ -589,7 +663,7 @@ class AuditExcelExportWizard(models.TransientModel):
         return {
             'date_start': date_start,
             'date_end': date_end,
-            'period_category': period_category,
+            'year_span': year_span,
             'show_prior_year': show_prior_year,
             'prior_date_start': prior_date_start,
             'prior_date_end': prior_date_end,
@@ -628,6 +702,10 @@ class AuditExcelExportWizard(models.TransientModel):
                     overrides=ap_overrides,
                 )
             )
+        if 'PPE' in selected_sheet_set:
+            data_sheets.append(self._prepare_empty_sheet_payload('PPE'))
+        if 'Bank Summary' in selected_sheet_set:
+            data_sheets.append(self._prepare_empty_sheet_payload('Bank Summary'))
 
         trial_balance_payload = {}
         if 'Trial Balance' in selected_sheet_set:
@@ -645,6 +723,15 @@ class AuditExcelExportWizard(models.TransientModel):
 
         used_sheet_names = set(workbook.sheetnames)
         for insert_index, payload in enumerate(stage_a_payload['data_sheets']):
+            if payload.get('sheet_mode') == 'empty':
+                self._write_empty_sheet(
+                    workbook,
+                    used_sheet_names,
+                    insert_index=insert_index,
+                    sheet_name=payload.get('sheet_name') or _('Sheet'),
+                )
+                continue
+
             if payload.get('sheet_mode') == 'invoice_bill_blocks':
                 self._write_invoice_bill_blocks_sheet(
                     workbook,
@@ -655,6 +742,19 @@ class AuditExcelExportWizard(models.TransientModel):
                     summary_headers=payload.get('summary_headers') or [],
                     line_headers=payload.get('line_headers') or [],
                     blocks=payload.get('blocks') or [],
+                )
+                continue
+
+            if payload.get('sheet_mode') == 'invoice_bill_flat':
+                self._write_invoice_bill_flat_sheet(
+                    workbook,
+                    used_sheet_names,
+                    insert_index=insert_index,
+                    sheet_name=payload.get('sheet_name') or _('Sheet'),
+                    title=payload.get('title') or payload.get('sheet_name') or _('Sheet'),
+                    headers=payload.get('headers') or [],
+                    rows=payload.get('rows') or [],
+                    column_types=payload.get('column_types') or {},
                 )
                 continue
 
@@ -842,7 +942,7 @@ class AuditExcelExportWizard(models.TransientModel):
         remaining_selected = [sheet_name for sheet_name in selected_sheet_names if sheet_name in workbook.sheetnames]
         if not remaining_selected:
             raise ValidationError(_('None of the selected sheets were generated for export.'))
-        self._reorder_workbook_sheets(workbook, remaining_selected)
+        self._reorder_workbook_sheets(workbook, self._order_sheet_names_for_workbook(remaining_selected))
 
     @staticmethod
     def _sheet_name_to_filename_token(sheet_name):
@@ -1149,12 +1249,14 @@ class AuditExcelExportWizard(models.TransientModel):
             overrides=tb_overrides,
             aged=False,
         )
-        return self._build_native_report_sheet_payload(
+        payload = self._build_native_report_sheet_payload(
             report=report,
             options=options,
             sheet_name='Trial Balance',
             empty_message=_('Trial Balance XLSX export returned no file content.'),
         )
+        payload['tb_maps'] = self._prepare_trial_balance_support_maps(self._get_reporting_periods())
+        return payload
 
     def _prepare_trial_balance_map(self, *, date_from, date_to, sheet_name, empty_message):
         if not date_to:
@@ -1298,6 +1400,7 @@ class AuditExcelExportWizard(models.TransientModel):
         max_scan_cols = min(worksheet.max_column, 20)
         for row_idx in range(1, max_scan_rows + 1):
             columns = {}
+            balance_cols = []
             for col_idx in range(1, max_scan_cols + 1):
                 value = worksheet.cell(row=row_idx, column=col_idx).value
                 if not isinstance(value, str):
@@ -1316,14 +1419,29 @@ class AuditExcelExportWizard(models.TransientModel):
                     columns.setdefault('credit_col', col_idx)
                     continue
                 if key in ('balance', 'endingbalance', 'totalbalance', 'closingbalance'):
-                    columns.setdefault('balance_col', col_idx)
+                    balance_cols.append(col_idx)
 
             code_like_col = columns.get('code_col') or columns.get('account_col')
             if code_like_col and (
-                columns.get('balance_col') or (columns.get('debit_col') and columns.get('credit_col'))
+                balance_cols or (columns.get('debit_col') and columns.get('credit_col'))
             ):
                 if not columns.get('code_col'):
                     columns['code_col'] = code_like_col
+                if balance_cols:
+                    debit_col = columns.get('debit_col')
+                    credit_col = columns.get('credit_col')
+                    opening_candidates = [col for col in balance_cols if debit_col and col < debit_col]
+                    ending_candidates = [col for col in balance_cols if credit_col and col > credit_col]
+                    columns['opening_balance_col'] = (
+                        opening_candidates[0]
+                        if opening_candidates
+                        else balance_cols[0]
+                    )
+                    columns['balance_col'] = (
+                        ending_candidates[-1]
+                        if ending_candidates
+                        else balance_cols[-1]
+                    )
                 columns['header_row'] = row_idx
                 return columns
         return {}
@@ -1337,8 +1455,10 @@ class AuditExcelExportWizard(models.TransientModel):
         total_row = None
         header_row = layout['header_row']
         code_col = layout.get('code_col')
+        account_col = layout.get('account_col')
         debit_col = layout.get('debit_col')
         credit_col = layout.get('credit_col')
+        opening_balance_col = layout.get('opening_balance_col')
         balance_col = layout.get('balance_col')
 
         for row_idx in range(header_row + 1, worksheet.max_row + 1):
@@ -1347,15 +1467,23 @@ class AuditExcelExportWizard(models.TransientModel):
                 total_row = row_idx
                 break
 
-            normalized_code = self._normalize_account_code(str(raw_code or ''))
+            raw_code_text = str(raw_code or '').strip()
+            normalized_code = self._normalize_account_code(raw_code_text)
             if len(normalized_code) < 6:
                 continue
+
+            account_name = ''
+            if account_col and account_col != code_col:
+                account_name = str(worksheet.cell(row=row_idx, column=account_col).value or '').strip()
 
             debit_value = self._coerce_numeric(
                 worksheet.cell(row=row_idx, column=debit_col).value if debit_col else 0.0
             )
             credit_value = self._coerce_numeric(
                 worksheet.cell(row=row_idx, column=credit_col).value if credit_col else 0.0
+            )
+            opening_balance_value = self._coerce_numeric(
+                worksheet.cell(row=row_idx, column=opening_balance_col).value if opening_balance_col else 0.0
             )
             if balance_col:
                 balance_value = self._coerce_numeric(
@@ -1367,6 +1495,9 @@ class AuditExcelExportWizard(models.TransientModel):
             rows.append({
                 'row': row_idx,
                 'code': normalized_code,
+                'code_raw': raw_code_text,
+                'name': account_name,
+                'opening_balance': opening_balance_value,
                 'debit': debit_value,
                 'credit': credit_value,
                 'balance': balance_value,
@@ -1412,18 +1543,67 @@ class AuditExcelExportWizard(models.TransientModel):
                 return row_idx
         return None
 
-    def _find_row_by_keys(self, sheet, keys, *, start_row=1, end_row=None):
+    def _find_row_by_keys(self, sheet, keys, *, start_row=1, end_row=None, occurrence=1):
         if sheet is None:
             return None
         normalized = {self._normalize_key(key) for key in (keys or []) if key}
         if not normalized:
             return None
         end_row = end_row or sheet.max_row
+        seen = 0
         for row_idx in range(start_row, end_row + 1):
             cell_value = self._normalize_key(sheet.cell(row=row_idx, column=1).value or '')
-            if cell_value in normalized:
+            if cell_value not in normalized:
+                continue
+            seen += 1
+            if seen == occurrence:
                 return row_idx
         return None
+
+    def _find_cell_position(self, sheet, keys, *, start_row=1, end_row=None, start_col=1, end_col=None, occurrence=1):
+        if sheet is None:
+            return (None, None)
+        if isinstance(keys, str):
+            keys = [keys]
+        normalized = {self._normalize_key(key) for key in (keys or []) if key}
+        if not normalized:
+            return (None, None)
+        end_row = end_row or sheet.max_row
+        end_col = end_col or sheet.max_column
+        seen = 0
+        for row_idx in range(start_row, end_row + 1):
+            for col_idx in range(start_col, end_col + 1):
+                cell_value = self._normalize_key(sheet.cell(row=row_idx, column=col_idx).value or '')
+                if cell_value not in normalized:
+                    continue
+                seen += 1
+                if seen == occurrence:
+                    return (row_idx, col_idx)
+        return (None, None)
+
+    def _find_column_by_label(self, sheet, label, *, start_row=1, end_row=None, start_col=1, end_col=None, occurrence=1):
+        _row_idx, col_idx = self._find_cell_position(
+            sheet,
+            label,
+            start_row=start_row,
+            end_row=end_row,
+            start_col=start_col,
+            end_col=end_col,
+            occurrence=occurrence,
+        )
+        return col_idx
+
+    def _find_column_by_keys(self, sheet, keys, *, start_row=1, end_row=None, start_col=1, end_col=None, occurrence=1):
+        _row_idx, col_idx = self._find_cell_position(
+            sheet,
+            keys,
+            start_row=start_row,
+            end_row=end_row,
+            start_col=start_col,
+            end_col=end_col,
+            occurrence=occurrence,
+        )
+        return col_idx
 
     def _set_detail_label(self, sheet, row_idx, label, *, indent=1):
         cell = sheet.cell(row=row_idx, column=1, value=label)
@@ -1524,6 +1704,21 @@ class AuditExcelExportWizard(models.TransientModel):
 
         return op_lines
 
+    def _find_row_containing_text(self, sheet, text, *, start_row=1, end_row=None, occurrence=1):
+        if sheet is None or not text:
+            return None
+        end_row = end_row or sheet.max_row
+        expected = self._normalize_key(text)
+        seen = 0
+        for row_idx in range(start_row, end_row + 1):
+            cell_value = self._normalize_key(sheet.cell(row=row_idx, column=1).value or '')
+            if expected not in cell_value:
+                continue
+            seen += 1
+            if seen == occurrence:
+                return row_idx
+        return None
+
     def _get_soci_net_profit_row(self, workbook):
         soci_sheet = self._get_sheet_if_exists(workbook, 'SOCI')
         if soci_sheet is None:
@@ -1558,7 +1753,7 @@ class AuditExcelExportWizard(models.TransientModel):
         sofp_row_total_assets = self._find_row_by_label(sofp_sheet, 'Total assets')
         sofp_row_total_liabilities = self._find_row_by_label(sofp_sheet, 'Total Liabilities')
         sofp_row_total_equity = self._find_row_by_label(sofp_sheet, 'Total Equity')
-        sofp_row_owner_current_account = self._find_row_by_label(sofp_sheet, 'Owner current account')
+        sofp_row_related_party_loan = self._find_row_by_label(sofp_sheet, 'Loan from related party')
 
         if summary_row_total_revenue and soci_row_revenue:
             summary_sheet[f'B{summary_row_total_revenue}'] = f'=SOCI!B{soci_row_revenue}'
@@ -1578,36 +1773,65 @@ class AuditExcelExportWizard(models.TransientModel):
             summary_sheet[f'B{summary_row_total_equity}'] = f'=SOFP!B{sofp_row_total_equity}'
         if summary_row_related_revenue and soci_row_revenue_related:
             summary_sheet[f'B{summary_row_related_revenue}'] = f'=SOCI!B{soci_row_revenue_related}'
-        if summary_row_related_loan and sofp_row_owner_current_account:
-            summary_sheet[f'B{summary_row_related_loan}'] = f'=SOFP!B{sofp_row_owner_current_account}'
+        if summary_row_related_loan and sofp_row_related_party_loan:
+            summary_sheet[f'B{summary_row_related_loan}'] = f'=SOFP!B{sofp_row_related_party_loan}'
         if summary_row_interest_income and soci_row_other_income:
             summary_sheet[f'B{summary_row_interest_income}'] = f'=SOCI!B{soci_row_other_income}'
 
-    def _ensure_soce_dividend_rows(self, sheet):
-        if sheet is None:
+    def _ensure_soce_dividend_rows(self, sheet, metric_refs=None):
+        if sheet is None or not self._tb_context_has_account_code(metric_refs, '31010202'):
+            return
+        if self._find_row_by_label(sheet, 'Dividend paid', occurrence=1) and self._find_row_by_label(
+            sheet, 'Dividend paid', occurrence=2
+        ):
             return
 
-        label_row_12 = self._normalize_key(sheet['A12'].value)
-        if label_row_12 != 'dividendpaid':
-            sheet.insert_rows(12, 1)
-            self._copy_row_style(sheet, source_row=11, target_row=12, max_col=6)
-        sheet['A12'] = 'Dividend paid'
+        def insert_dividend_row(before_row):
+            if not before_row:
+                return
+            sheet.insert_rows(before_row, 1)
+            source_row = max(before_row - 1, 1)
+            self._copy_row_style(sheet, source_row, before_row, max_col=6)
+            sheet.cell(row=before_row, column=1, value='Dividend paid')
+            for col_idx in range(2, 6):
+                sheet.cell(row=before_row, column=col_idx, value=None)
+            sheet.cell(row=before_row, column=6, value=f'=SUM(B{before_row}:E{before_row})')
 
-        label_row_18 = self._normalize_key(sheet['A18'].value)
-        if label_row_18 != 'dividendpaid':
-            sheet.insert_rows(18, 1)
-            self._copy_row_style(sheet, source_row=17, target_row=18, max_col=6)
-        sheet['A18'] = 'Dividend paid'
+        prior_close_row = (
+            self._find_row_by_label(sheet, 'Balance as at end of period')
+            or self._find_row_containing_text(sheet, 'Balance as at', occurrence=2)
+        )
+        if self._find_row_by_label(sheet, 'Dividend paid', occurrence=1) is None and prior_close_row:
+            insert_dividend_row(prior_close_row)
 
-    def _ensure_socf_dividend_row(self, sheet):
-        if sheet is None:
+        current_close_row = (
+            self._find_row_by_label(sheet, 'Balance c/f')
+            or self._find_row_containing_text(sheet, 'Balance as at', occurrence=3)
+        )
+        if self._find_row_by_label(sheet, 'Dividend paid', occurrence=2) is None and current_close_row:
+            insert_dividend_row(current_close_row)
+
+    def _ensure_socf_dividend_row(self, sheet, metric_refs=None):
+        if sheet is None or not self._tb_context_has_account_code(metric_refs, '31010202'):
+            return
+        if self._find_row_by_label(sheet, 'Dividend paid'):
             return
 
-        label_row_20 = self._normalize_key(sheet['A20'].value)
-        if label_row_20 != 'dividendpaid':
-            sheet.insert_rows(20, 1)
-            self._copy_row_style(sheet, source_row=19, target_row=20, max_col=3)
-        sheet['A20'] = 'Dividend paid'
+        insert_before_row = self._find_row_by_label(sheet, 'Owner current account') or self._find_row_by_keys(
+            sheet,
+            ['Net cash generated from financing activities', 'Net cash (used in) financing activities'],
+            start_row=1,
+            end_row=sheet.max_row,
+        )
+        if not insert_before_row:
+            return
+
+        sheet.insert_rows(insert_before_row, 1)
+        source_row = min(insert_before_row + 1, sheet.max_row)
+        self._copy_row_style(sheet, source_row, insert_before_row, max_col=3)
+        sheet.cell(row=insert_before_row, column=1, value='Dividend paid')
+        sheet.cell(row=insert_before_row, column=2, value=None)
+        sheet.cell(row=insert_before_row, column=3, value=None)
 
     def _stage_g_link_statement_sheets_to_trial_balance(self, stage_c_context, trial_balance_payload):
         workbook = stage_c_context.get('workbook')
@@ -1631,9 +1855,9 @@ class AuditExcelExportWizard(models.TransientModel):
         if not metric_refs:
             return
 
-        self._link_sofp_to_tb_metrics(workbook, metric_refs, tb_sheet.title)
         self._link_soci_to_tb_metrics(workbook, metric_refs, tb_sheet.title)
         self._link_soce_to_tb_metrics(workbook, metric_refs, tb_sheet.title)
+        self._link_sofp_to_tb_metrics(workbook, metric_refs, tb_sheet.title)
         self._link_socf_to_tb_metrics(workbook, metric_refs, tb_sheet.title)
         self._refresh_summary_sheet_links(workbook)
 
@@ -1703,6 +1927,7 @@ class AuditExcelExportWizard(models.TransientModel):
 
         current_debit_letter = get_column_letter(current_debit_col)
         current_credit_letter = get_column_letter(current_credit_col)
+        current_balance_letter = get_column_letter(current_balance_col)
         prior_debit_letter = get_column_letter(prior_debit_col)
         prior_credit_letter = get_column_letter(prior_credit_col)
         prior_balance_letter = get_column_letter(prior_balance_col)
@@ -1732,9 +1957,11 @@ class AuditExcelExportWizard(models.TransientModel):
                 self._copy_cell_style(row_style_source, cell)
                 cell.number_format = number_format
 
-            opening_current_value = 0.0 if current_bs_mode == 'range' else float(
-                (opening_current_map.get(row['code']) or {}).get('balance') or 0.0
-            )
+            opening_current_value = float(row.get('opening_balance') or 0.0)
+            if not layout.get('opening_balance_col'):
+                opening_current_value = 0.0 if current_bs_mode == 'range' else float(
+                    (opening_current_map.get(row['code']) or {}).get('balance') or 0.0
+                )
             opening_prior_value = 0.0 if prior_bs_mode == 'range' else float(
                 (opening_prior_map.get(row['code']) or {}).get('balance') or 0.0
             )
@@ -1752,12 +1979,8 @@ class AuditExcelExportWizard(models.TransientModel):
 
             closing_current_cell = tb_sheet.cell(row=row_idx, column=closing_current_col)
             closing_prior_cell = tb_sheet.cell(row=row_idx, column=closing_prior_col)
-            closing_current_cell.value = (
-                f"={opening_current_letter}{row_idx}+{current_debit_letter}{row_idx}-{current_credit_letter}{row_idx}"
-            )
-            closing_prior_cell.value = (
-                f"={opening_prior_letter}{row_idx}+{prior_debit_letter}{row_idx}-{prior_credit_letter}{row_idx}"
-            )
+            closing_current_cell.value = f"={current_balance_letter}{row_idx}"
+            closing_prior_cell.value = f"={prior_balance_letter}{row_idx}"
             self._copy_cell_style(row_style_source, closing_current_cell)
             self._copy_cell_style(row_style_source, closing_prior_cell)
             closing_current_cell.number_format = number_format
@@ -1784,10 +2007,12 @@ class AuditExcelExportWizard(models.TransientModel):
         code_range = f"${norm_code_letter}${data_start_row}:${norm_code_letter}${data_end_row}"
         current_debit_range = f"${current_debit_letter}${data_start_row}:${current_debit_letter}${data_end_row}"
         current_credit_range = f"${current_credit_letter}${data_start_row}:${current_credit_letter}${data_end_row}"
-        current_balance_range = f"${closing_current_letter}${data_start_row}:${closing_current_letter}${data_end_row}"
+        current_balance_range = f"${current_balance_letter}${data_start_row}:${current_balance_letter}${data_end_row}"
         prior_debit_range = f"${prior_debit_letter}${data_start_row}:${prior_debit_letter}${data_end_row}"
         prior_credit_range = f"${prior_credit_letter}${data_start_row}:${prior_credit_letter}${data_end_row}"
-        prior_balance_range = f"${closing_prior_letter}${data_start_row}:${closing_prior_letter}${data_end_row}"
+        prior_balance_range = f"${prior_balance_letter}${data_start_row}:${prior_balance_letter}${data_end_row}"
+        opening_current_range = f"${opening_current_letter}${data_start_row}:${opening_current_letter}${data_end_row}"
+        opening_prior_range = f"${opening_prior_letter}${data_start_row}:${opening_prior_letter}${data_end_row}"
 
         def sumifs_expr(value_range, criteria):
             escaped = criteria.replace('"', '""')
@@ -1801,15 +2026,19 @@ class AuditExcelExportWizard(models.TransientModel):
             value_range = prior_balance_range if is_prior else current_balance_range
             return sumifs_expr(value_range, code)
 
+        def opening_prefix_expr(prefix, is_prior=False):
+            value_range = opening_prior_range if is_prior else opening_current_range
+            return sumifs_expr(value_range, f'{prefix}*')
+
+        def opening_exact_expr(code, is_prior=False):
+            value_range = opening_prior_range if is_prior else opening_current_range
+            return sumifs_expr(value_range, code)
+
         def movement_prefix_expr(prefix, is_prior=False):
-            debit_range = prior_debit_range if is_prior else current_debit_range
-            credit_range = prior_credit_range if is_prior else current_credit_range
-            return f"({sumifs_expr(debit_range, f'{prefix}*')}-{sumifs_expr(credit_range, f'{prefix}*')})"
+            return f"({bal_prefix_expr(prefix, is_prior)}-{opening_prefix_expr(prefix, is_prior)})"
 
         def movement_exact_expr(code, is_prior=False):
-            debit_range = prior_debit_range if is_prior else current_debit_range
-            credit_range = prior_credit_range if is_prior else current_credit_range
-            return f"({sumifs_expr(debit_range, code)}-{sumifs_expr(credit_range, code)})"
+            return f"({bal_exact_expr(code, is_prior)}-{opening_exact_expr(code, is_prior)})"
 
         def expr_sum(*parts):
             valid = [part for part in parts if part]
@@ -1824,6 +2053,7 @@ class AuditExcelExportWizard(models.TransientModel):
             return expr_sum(*(movement_prefix_expr(prefix, is_prior) for prefix in prefixes))
 
         metric_refs = {}
+        tb_link_rows = []
         helper_row = header_row + 1
         tb_sheet_name_escaped = tb_sheet.title.replace("'", "''")
         helper_header_style = tb_sheet.cell(row=header_row, column=helper_label_col)
@@ -1847,6 +2077,42 @@ class AuditExcelExportWizard(models.TransientModel):
                 'prior': prior_ref,
             }
             helper_row += 1
+
+        for row in rows:
+            row_idx = row.get('row')
+            prior_vals = prior_period_map.get(row['code']) or {}
+            tb_link_rows.append({
+                'code': row.get('code'),
+                'code_raw': row.get('code_raw') or row.get('code') or '',
+                'name': row.get('name') or '',
+                'row_index': row_idx,
+                'current_debit_ref': (
+                    f"'{tb_sheet_name_escaped}'!${current_debit_letter}${row_idx}" if row_idx else None
+                ),
+                'current_credit_ref': (
+                    f"'{tb_sheet_name_escaped}'!${current_credit_letter}${row_idx}" if row_idx else None
+                ),
+                'current_balance_ref': (
+                    f"'{tb_sheet_name_escaped}'!${current_balance_letter}${row_idx}" if row_idx else None
+                ),
+                'prior_debit_ref': (
+                    f"'{tb_sheet_name_escaped}'!${prior_debit_letter}${row_idx}" if row_idx else None
+                ),
+                'prior_credit_ref': (
+                    f"'{tb_sheet_name_escaped}'!${prior_credit_letter}${row_idx}" if row_idx else None
+                ),
+                'prior_balance_ref': (
+                    f"'{tb_sheet_name_escaped}'!${prior_balance_letter}${row_idx}" if row_idx else None
+                ),
+                'current_opening_ref': (
+                    f"'{tb_sheet_name_escaped}'!${opening_current_letter}${row_idx}" if row_idx else None
+                ),
+                'prior_opening_ref': (
+                    f"'{tb_sheet_name_escaped}'!${opening_prior_letter}${row_idx}" if row_idx else None
+                ),
+                'current_closing': float(row.get('balance') or 0.0),
+                'prior_closing': float(prior_vals.get('balance') or 0.0),
+            })
 
         add_metric(
             'sofp_non_current_other',
@@ -2003,8 +2269,8 @@ class AuditExcelExportWizard(models.TransientModel):
         )
         add_metric(
             'soci_other_income',
-            f"(-{sum_balance_prefixes(['410301', '410302', '410303', '410304', '410305', '410306', '410307', '410308', '410309', '410310'])})",
-            f"(-{sum_balance_prefixes(['410301', '410302', '410303', '410304', '410305', '410306', '410307', '410308', '410309', '410310'], True)})",
+            f"ABS({sum_balance_prefixes(['410301', '410302', '410303', '410304', '410305', '410306', '410307', '410308', '410309', '410310'])})",
+            f"ABS({sum_balance_prefixes(['410301', '410302', '410303', '410304', '410305', '410306', '410307', '410308', '410309', '410310'], True)})",
         )
         add_metric(
             'soci_investment_gain_loss',
@@ -2029,30 +2295,44 @@ class AuditExcelExportWizard(models.TransientModel):
         )
         add_metric(
             'socf_change_current_liabilities',
-            f"(-{sum_movement_prefixes(['220201', '220301', '220302', '220303'])})",
-            f"(-{sum_movement_prefixes(['220201', '220301', '220302', '220303'], True)})",
+            f"(-{sum_movement_prefixes(self._SOCF_CURRENT_LIABILITY_PREFIXES)})",
+            f"(-{sum_movement_prefixes(self._SOCF_CURRENT_LIABILITY_PREFIXES, True)})",
         )
         add_metric(
             'socf_property_investing',
             f"(-{movement_prefix_expr('1101')})",
             f"(-{movement_prefix_expr('1101', True)})",
         )
-        cash_eq_close_current = (
-            f"({bal_prefix_expr('1204')}-{bal_exact_expr('12040101')}-{bal_prefix_expr('1206')})"
+        add_metric(
+            'socf_security_deposit',
+            f"(-{movement_exact_expr(self._SOCF_SECURITY_DEPOSIT_ACCOUNT_CODE)})",
+            f"(-{movement_exact_expr(self._SOCF_SECURITY_DEPOSIT_ACCOUNT_CODE, True)})",
         )
-        cash_eq_movement_current = (
-            f"({movement_prefix_expr('1204')}-{movement_exact_expr('12040101')}-{movement_prefix_expr('1206')})"
+        add_metric(
+            'socf_related_party_loan',
+            f"(-{movement_prefix_expr(self._SOCF_RELATED_PARTY_LOAN_PREFIX)})",
+            f"(-{movement_prefix_expr(self._SOCF_RELATED_PARTY_LOAN_PREFIX, True)})",
         )
-        cash_eq_close_prior = (
-            f"({bal_prefix_expr('1204', True)}-{bal_exact_expr('12040101', True)}-{bal_prefix_expr('1206', True)})"
+        add_metric(
+            'socf_corporate_tax_paid',
+            (
+                f"((-{bal_prefix_expr('220401')})-(-{opening_prefix_expr('220401')})"
+                f"-({expr_sum(*(movement_exact_expr(code) for code in self._SOCF_CT_EXPENSE_ACCOUNT_CODES))}))"
+            ),
+            (
+                f"((-{bal_prefix_expr('220401', True)})-(-{opening_prefix_expr('220401', True)})"
+                f"-({expr_sum(*(movement_exact_expr(code, True) for code in self._SOCF_CT_EXPENSE_ACCOUNT_CODES))}))"
+            ),
         )
-        cash_eq_movement_prior = (
-            f"({movement_prefix_expr('1204', True)}-{movement_exact_expr('12040101', True)}-{movement_prefix_expr('1206', True)})"
+        add_metric(
+            'socf_eosb_paid',
+            f"MIN(-{movement_exact_expr(self._SOCF_EOSB_LIABILITY_CODE)},0)",
+            f"MIN(-{movement_exact_expr(self._SOCF_EOSB_LIABILITY_CODE, True)},0)",
         )
         add_metric(
             'socf_cash_equivalent_opening',
-            f"({cash_eq_close_current}-{cash_eq_movement_current})",
-            f"({cash_eq_close_prior}-{cash_eq_movement_prior})",
+            f"({opening_prefix_expr('1204')}-{opening_exact_expr('12040101')}-{opening_prefix_expr('1206')})",
+            f"({opening_prefix_expr('1204', True)}-{opening_exact_expr('12040101', True)}-{opening_prefix_expr('1206', True)})",
         )
 
         for col_idx in (
@@ -2067,6 +2347,22 @@ class AuditExcelExportWizard(models.TransientModel):
         ):
             tb_sheet.column_dimensions[get_column_letter(col_idx)].hidden = True
 
+        metric_refs['__tb_link_context__'] = {
+            'sheet_name': tb_sheet.title,
+            'code_range_ref': f"'{tb_sheet_name_escaped}'!{code_range}",
+            'current_balance_range_ref': f"'{tb_sheet_name_escaped}'!{current_balance_range}",
+            'prior_balance_range_ref': f"'{tb_sheet_name_escaped}'!{prior_balance_range}",
+            'present_codes': {
+                str(code)
+                for code in (
+                    list(prior_period_map.keys())
+                    + [row.get('code') for row in rows if row.get('code')]
+                )
+                if code
+            },
+            'rows': tb_link_rows,
+        }
+
         return metric_refs
 
     def _metric_ref(self, metric_refs, key, period):
@@ -2078,91 +2374,793 @@ class AuditExcelExportWizard(models.TransientModel):
             return ref[1:]
         return ref
 
+    def _tb_context_has_account_code(self, metric_refs, *codes):
+        tb_context = (metric_refs or {}).get('__tb_link_context__') or {}
+        present_codes = tb_context.get('present_codes') or set()
+        normalized_codes = {str(code).strip() for code in (codes or []) if code}
+        if not normalized_codes:
+            return False
+        if present_codes.intersection(normalized_codes):
+            return True
+        for row in tb_context.get('rows') or []:
+            row_code = str(row.get('code') or row.get('code_raw') or '').strip()
+            if row_code in normalized_codes:
+                return True
+        return False
+
+    def _tb_formula_expr(self, formula):
+        if isinstance(formula, str) and formula.startswith('='):
+            return formula[1:]
+        return formula or '0'
+
+    def _tb_match_context_rows(self, tb_context, criteria):
+        if not tb_context or criteria is None:
+            return []
+
+        token = str(criteria).strip()
+        if not token:
+            return []
+
+        is_prefix = token.endswith('*')
+        prefix = token[:-1] if is_prefix else token
+        matches = []
+        for row in tb_context.get('rows') or []:
+            code = str(row.get('code') or row.get('code_raw') or '').strip()
+            if not code:
+                continue
+            if is_prefix:
+                if not code.startswith(prefix):
+                    continue
+            elif code != token:
+                continue
+            matches.append(row)
+        return matches
+
+    def _tb_row_reference_terms(self, row_matches, ref_key):
+        indexed_rows = []
+        direct_refs = []
+
+        for row in row_matches or []:
+            ref = row.get(ref_key)
+            if not ref:
+                continue
+            row_idx = row.get('row_index')
+            if isinstance(row_idx, int):
+                indexed_rows.append((row_idx, ref))
+            else:
+                direct_refs.append(ref)
+
+        indexed_rows.sort(key=lambda item: item[0])
+        terms = []
+        if indexed_rows:
+            start_idx, start_ref = indexed_rows[0]
+            prev_idx, prev_ref = indexed_rows[0]
+            for row_idx, ref in indexed_rows[1:]:
+                if row_idx == prev_idx + 1:
+                    prev_idx = row_idx
+                    prev_ref = ref
+                    continue
+
+                terms.append(start_ref if start_idx == prev_idx else f'{start_ref}:{prev_ref}')
+                start_idx = row_idx
+                start_ref = ref
+                prev_idx = row_idx
+                prev_ref = ref
+
+            terms.append(start_ref if start_idx == prev_idx else f'{start_ref}:{prev_ref}')
+
+        terms.extend(direct_refs)
+        return terms
+
+    def _tb_terms_expr(self, terms):
+        if not terms:
+            return '0'
+        if len(terms) == 1:
+            term = terms[0]
+            return term if ':' not in term else f'SUM({term})'
+        return f"SUM({','.join(terms)})"
+
+    def _tb_row_sum_formula_by_ref(self, tb_context, criteria, ref_key, *, negate=False, absolute=False):
+        row_matches = self._tb_match_context_rows(tb_context, criteria)
+        if not row_matches:
+            expr = '0'
+        else:
+            terms = self._tb_row_reference_terms(row_matches, ref_key)
+            expr = self._tb_terms_expr(terms)
+
+        if len(expr) > 7800:
+            return None
+
+        if absolute:
+            expr = f'ABS({expr})'
+        if negate:
+            expr = f'-({expr})'
+        return f'={expr}'
+
+    def _tb_row_sum_formula(self, tb_context, criteria, *, is_prior=False, negate=False, absolute=False):
+        ref_key = 'prior_balance_ref' if is_prior else 'current_balance_ref'
+        return self._tb_row_sum_formula_by_ref(
+            tb_context,
+            criteria,
+            ref_key,
+            negate=negate,
+            absolute=absolute,
+        )
+
+    def _tb_sumifs_formula(self, tb_context, criteria, *, is_prior=False, negate=False, absolute=False):
+        if not tb_context or criteria is None:
+            return None
+        value_range = tb_context.get('prior_balance_range_ref') if is_prior else tb_context.get('current_balance_range_ref')
+        code_range = tb_context.get('code_range_ref')
+        if not value_range or not code_range:
+            return None
+
+        escaped_criteria = str(criteria).replace('"', '""')
+        expr = f'SUMIFS({value_range},{code_range},"{escaped_criteria}")'
+        if absolute:
+            expr = f'ABS({expr})'
+        if negate:
+            expr = f'-({expr})'
+        return f'={expr}'
+
+    def _tb_prefix_balance_formula(self, tb_context, prefix, *, is_prior=False, negate=False, absolute=False):
+        if not prefix:
+            return None
+        direct_formula = self._tb_row_sum_formula(
+            tb_context,
+            f'{prefix}*',
+            is_prior=is_prior,
+            negate=negate,
+            absolute=absolute,
+        )
+        if direct_formula:
+            return direct_formula
+        return self._tb_sumifs_formula(
+            tb_context,
+            f'{prefix}*',
+            is_prior=is_prior,
+            negate=negate,
+            absolute=absolute,
+        )
+
+    def _tb_sum_prefix_balance_formula(self, tb_context, prefixes, *, is_prior=False, negate=False, absolute=False):
+        if not tb_context:
+            return None
+        terms = []
+        for prefix in prefixes or []:
+            term_formula = self._tb_prefix_balance_formula(tb_context, prefix, is_prior=is_prior)
+            if not term_formula:
+                continue
+            terms.append(f'({self._tb_formula_expr(term_formula)})')
+
+        expr = '+'.join(terms) if terms else '0'
+        if absolute:
+            expr = f'ABS({expr})'
+        if negate:
+            expr = f'-({expr})'
+        return f'={expr}'
+
+    def _tb_exact_balance_formula(self, tb_context, code, *, is_prior=False, negate=False):
+        if not code:
+            return None
+        direct_formula = self._tb_row_sum_formula(
+            tb_context,
+            str(code),
+            is_prior=is_prior,
+            negate=negate,
+        )
+        if direct_formula:
+            return direct_formula
+        return self._tb_sumifs_formula(tb_context, str(code), is_prior=is_prior, negate=negate)
+
+    def _tb_prefix_movement_formula(self, tb_context, prefix, *, is_prior=False, negate=False):
+        if not prefix:
+            return None
+
+        criteria = f'{prefix}*'
+        debit_ref_key = 'prior_debit_ref' if is_prior else 'current_debit_ref'
+        credit_ref_key = 'prior_credit_ref' if is_prior else 'current_credit_ref'
+        debit_formula = self._tb_row_sum_formula_by_ref(tb_context, criteria, debit_ref_key)
+        credit_formula = self._tb_row_sum_formula_by_ref(tb_context, criteria, credit_ref_key)
+        if not debit_formula or not credit_formula:
+            return None
+
+        expr = f"({self._tb_formula_expr(debit_formula)})-({self._tb_formula_expr(credit_formula)})"
+        if negate:
+            expr = f'-({expr})'
+        return f'={expr}'
+
+    def _tb_exact_movement_formula(self, tb_context, code, *, is_prior=False, negate=False):
+        if not code:
+            return None
+
+        criteria = str(code)
+        debit_ref_key = 'prior_debit_ref' if is_prior else 'current_debit_ref'
+        credit_ref_key = 'prior_credit_ref' if is_prior else 'current_credit_ref'
+        debit_formula = self._tb_row_sum_formula_by_ref(tb_context, criteria, debit_ref_key)
+        credit_formula = self._tb_row_sum_formula_by_ref(tb_context, criteria, credit_ref_key)
+        if not debit_formula or not credit_formula:
+            return None
+
+        expr = f"({self._tb_formula_expr(debit_formula)})-({self._tb_formula_expr(credit_formula)})"
+        if negate:
+            expr = f'-({expr})'
+        return f'={expr}'
+
+    def _tb_sum_prefix_movement_formula(self, tb_context, prefixes, *, is_prior=False, negate=False):
+        if not tb_context:
+            return None
+
+        terms = []
+        for prefix in prefixes or []:
+            formula = self._tb_prefix_movement_formula(tb_context, prefix, is_prior=is_prior)
+            if not formula:
+                continue
+            terms.append(f"({self._tb_formula_expr(formula)})")
+
+        expr = '+'.join(terms) if terms else '0'
+        if negate:
+            expr = f'-({expr})'
+        return f'={expr}'
+
+    def _tb_prefix_opening_formula(self, tb_context, prefix, *, is_prior=False, negate=False):
+        if not prefix:
+            return None
+
+        ref_key = 'prior_opening_ref' if is_prior else 'current_opening_ref'
+        return self._tb_row_sum_formula_by_ref(tb_context, f'{prefix}*', ref_key, negate=negate)
+
+    def _tb_exact_opening_formula(self, tb_context, code, *, is_prior=False, negate=False):
+        if not code:
+            return None
+
+        ref_key = 'prior_opening_ref' if is_prior else 'current_opening_ref'
+        return self._tb_row_sum_formula_by_ref(tb_context, str(code), ref_key, negate=negate)
+
+    def _tb_socf_metric_formula(self, tb_context, metric_key, *, is_prior=False):
+        if not tb_context:
+            return None
+
+        if metric_key == 'socf_depreciation_movement':
+            return self._tb_prefix_movement_formula(tb_context, '5114', is_prior=is_prior)
+
+        if metric_key == 'socf_eosb_adjustment':
+            eosb_movement = self._tb_exact_movement_formula(tb_context, '21040101', is_prior=is_prior, negate=True)
+            if not eosb_movement:
+                return None
+            return f"=MAX({self._tb_formula_expr(eosb_movement)},0)"
+
+        if metric_key == 'socf_change_current_assets':
+            return self._tb_sum_prefix_movement_formula(
+                tb_context,
+                ['120101', '120201', '120202', '120301', '120302', '120303', '120304', '120501', '120502'],
+                is_prior=is_prior,
+                negate=True,
+            )
+
+        if metric_key == 'socf_change_current_liabilities':
+            return self._tb_sum_prefix_movement_formula(
+                tb_context,
+                self._SOCF_CURRENT_LIABILITY_PREFIXES,
+                is_prior=is_prior,
+                negate=True,
+            )
+
+        if metric_key == 'socf_property_investing':
+            return self._tb_prefix_movement_formula(tb_context, '1101', is_prior=is_prior, negate=True)
+
+        if metric_key == 'socf_security_deposit':
+            return self._tb_exact_movement_formula(
+                tb_context,
+                self._SOCF_SECURITY_DEPOSIT_ACCOUNT_CODE,
+                is_prior=is_prior,
+                negate=True,
+            )
+
+        if metric_key == 'socf_related_party_loan':
+            return self._tb_prefix_movement_formula(
+                tb_context,
+                self._SOCF_RELATED_PARTY_LOAN_PREFIX,
+                is_prior=is_prior,
+                negate=True,
+            )
+
+        if metric_key == 'socf_corporate_tax_paid':
+            tax_liability_movement = self._tb_prefix_movement_formula(
+                tb_context,
+                '220401',
+                is_prior=is_prior,
+                negate=True,
+            )
+            if not tax_liability_movement:
+                return None
+            expense_terms = []
+            for code in self._SOCF_CT_EXPENSE_ACCOUNT_CODES:
+                expense_formula = self._tb_exact_movement_formula(tb_context, code, is_prior=is_prior)
+                if not expense_formula:
+                    continue
+                expense_terms.append(f"({self._tb_formula_expr(expense_formula)})")
+            expense_expr = '+'.join(expense_terms) if expense_terms else '0'
+            return f"=({self._tb_formula_expr(tax_liability_movement)})-({expense_expr})"
+
+        if metric_key == 'socf_eosb_paid':
+            eosb_movement = self._tb_exact_movement_formula(
+                tb_context,
+                self._SOCF_EOSB_LIABILITY_CODE,
+                is_prior=is_prior,
+                negate=True,
+            )
+            if not eosb_movement:
+                return None
+            return f"=MIN({self._tb_formula_expr(eosb_movement)},0)"
+
+        if metric_key == 'socf_cash_equivalent_opening':
+            opening_1204 = self._tb_prefix_opening_formula(tb_context, '1204', is_prior=is_prior)
+            opening_12040101 = self._tb_exact_opening_formula(tb_context, '12040101', is_prior=is_prior)
+            opening_1206 = self._tb_prefix_opening_formula(tb_context, '1206', is_prior=is_prior)
+            if not opening_1204 or not opening_12040101 or not opening_1206:
+                return None
+            return (
+                f"=({self._tb_formula_expr(opening_1204)})"
+                f"-({self._tb_formula_expr(opening_12040101)})"
+                f"-({self._tb_formula_expr(opening_1206)})"
+            )
+
+        if metric_key == 'share_capital_movement':
+            return self._tb_exact_movement_formula(tb_context, '31010101', is_prior=is_prior, negate=True)
+
+        if metric_key == 'owner_current_account_movement':
+            return self._tb_exact_movement_formula(tb_context, '12040101', is_prior=is_prior, negate=True)
+
+        if metric_key == 'dividend_paid':
+            return self._tb_exact_movement_formula(tb_context, '31010202', is_prior=is_prior, negate=True)
+
+        return None
+
+    def _tb_sofp_cash_bank_formula(self, tb_context, *, is_prior=False):
+        total_cash_formula = self._tb_sum_prefix_balance_formula(
+            tb_context,
+            ['120401', '120402', '120601'],
+            is_prior=is_prior,
+        )
+        owner_current_formula = self._tb_exact_balance_formula(tb_context, '12040101', is_prior=is_prior)
+        if not total_cash_formula or not owner_current_formula:
+            return None
+        return f"=({self._tb_formula_expr(total_cash_formula)})-({self._tb_formula_expr(owner_current_formula)})"
+
+    def _tb_soci_metric_formula(self, tb_context, metric_key, *, is_prior=False):
+        metric_specs = {
+            'soci_revenue': {'prefixes': ['410101'], 'negate': True},
+            'soci_revenue_related': {'prefixes': ['410201'], 'negate': True},
+            'soci_direct_cost': {'prefixes': ['510101', '510102', '510103', '510104']},
+            'soci_director_salary': {'prefixes': ['510701']},
+            'soci_salary_office': {'prefixes': ['510801']},
+            'soci_salary_coaching': {'prefixes': ['510802']},
+            'soci_salary_benefits': {'prefixes': ['510803']},
+            'soci_salary_bonus': {'prefixes': ['510804']},
+            'soci_salary_welfare': {'prefixes': ['510805']},
+            'soci_advertising': {'prefixes': ['510201']},
+            'soci_audit_fee': {'prefixes': ['510901']},
+            'soci_accounting_fee': {'prefixes': ['510902']},
+            'soci_depreciation_expense': {'prefixes': ['511401']},
+            'soci_amortization_expense': {'prefixes': ['511402']},
+            'soci_legal_gov_fee': {'prefixes': ['510601']},
+            'soci_trade_license': {'prefixes': ['512601']},
+            'soci_establishment_card': {'prefixes': ['512602']},
+            'soci_visa_fee': {'prefixes': ['512603']},
+            'soci_insurance': {'prefixes': ['512501']},
+            'soci_office_expense': {
+                'prefixes': ['510401', '511001', '511002', '511101', '511201', '511202', '511501', '511701', '511801', '512801'],
+            },
+            'soci_bank_charges': {'prefixes': ['512301']},
+            'soci_exchange_loss': {'prefixes': ['512201']},
+            'soci_other_expenses': {
+                'prefixes': ['510301', '510501', '511301', '511302', '511601', '511901', '512001', '512101', '512202', '512401', '512701'],
+            },
+            'soci_other_income': {
+                'prefixes': ['410301', '410302', '410303', '410304', '410305', '410306', '410307', '410308', '410309', '410310'],
+                'absolute': True,
+            },
+            'soci_investment_gain_loss': {'prefixes': ['5201'], 'negate': True},
+        }
+
+        spec = metric_specs.get(metric_key)
+        if not spec:
+            return None
+
+        return self._tb_sum_prefix_balance_formula(
+            tb_context,
+            spec.get('prefixes') or [],
+            is_prior=is_prior,
+            negate=bool(spec.get('negate')),
+            absolute=bool(spec.get('absolute')),
+        )
+
+    def _build_sofp_live_link_lines(self, metric_refs, show_prior):
+        tb_context = metric_refs.get('__tb_link_context__') or {}
+        tb_rows = tb_context.get('rows') or []
+        if not tb_context or not tb_rows:
+            return {}
+
+        lines_by_section = {
+            'non_current_assets': [],
+            'current_assets': [],
+            'non_current_liabilities': [],
+            'current_liabilities': [],
+        }
+
+        for row in tb_rows:
+            code = row.get('code') or ''
+            section = self._ar_sofp_account_section(code)
+            if section not in lines_by_section:
+                continue
+
+            current_value = float(row.get('current_closing') or 0.0)
+            prior_value = float(row.get('prior_closing') or 0.0)
+            negate = section in ('non_current_liabilities', 'current_liabilities')
+            if negate:
+                current_value = -current_value
+                prior_value = -prior_value
+            if not (current_value or (show_prior and prior_value)):
+                continue
+
+            lines_by_section[section].append({
+                'label': self._ar_format_sofp_account_label(row),
+                'current_formula': self._tb_exact_balance_formula(tb_context, code, negate=negate),
+                'prior_formula': self._tb_exact_balance_formula(tb_context, code, is_prior=True, negate=negate),
+            })
+
+        cash_current_formula = self._tb_sofp_cash_bank_formula(tb_context, is_prior=False)
+        cash_prior_formula = self._tb_sofp_cash_bank_formula(tb_context, is_prior=True)
+        cash_line = {
+            'label': 'Cash and bank balances',
+            'current_formula': cash_current_formula or self._metric_ref(metric_refs, 'sofp_cash_bank', 'current'),
+            'prior_formula': cash_prior_formula or self._metric_ref(metric_refs, 'sofp_cash_bank', 'prior'),
+        }
+        lines_by_section['current_assets'].append(cash_line)
+        return lines_by_section
+
+    def _get_sofp_link_rows(self, sheet):
+        if sheet is None:
+            return {}
+        return {
+            'non_current_assets': self._find_row_by_label(sheet, 'Non-current assets'),
+            'total_non_current_assets': self._find_row_by_label(sheet, 'Total non-current assets'),
+            'current_assets': self._find_row_by_label(sheet, 'Current assets'),
+            'total_current_assets': self._find_row_by_label(sheet, 'Total current assets'),
+            'total_assets': self._find_row_by_label(sheet, 'Total assets'),
+            'equity': self._find_row_by_label(sheet, 'Equity'),
+            'total_equity': self._find_row_by_keys(sheet, ['Total Equity', 'Total equity']),
+            'non_current_liabilities': self._find_row_by_label(sheet, 'Non-current liabilities'),
+            'current_liabilities': self._find_row_by_label(sheet, 'Current liabilities'),
+            'total_liabilities': self._find_row_by_keys(sheet, ['Total Liabilities', 'Total liabilities']),
+            'total_equity_liabilities': self._find_row_by_keys(
+                sheet,
+                ['Total Equity and Liabilities', 'Total equity and liabilities'],
+            ),
+        }
+
+    def _build_sofp_equity_formula_lines(self, workbook, sofp_sheet=None):
+        soce_sheet = self._get_sheet_if_exists(workbook, 'SOCE')
+        if soce_sheet is None:
+            return []
+
+        soce_layout = self._get_soce_link_layout(soce_sheet)
+        cols = soce_layout.get('cols') or {}
+        rows = soce_layout.get('rows') or {}
+        prior_close_row = rows.get('prior_close')
+        current_close_row = rows.get('current_close')
+        if not prior_close_row or not current_close_row:
+            return []
+
+        def _ref(col_key, row_idx):
+            col_idx = cols.get(col_key)
+            if not col_idx or not row_idx:
+                return None
+            return f'=SOCE!{get_column_letter(col_idx)}{row_idx}'
+
+        line_specs = [
+            {
+                'default_label': 'Share capital',
+                'col_key': 'share_capital',
+                'aliases': ('Share capital', 'Share Capital'),
+            },
+            {
+                'default_label': 'Retained earnings',
+                'col_key': 'retained_earnings',
+                'aliases': ('Retained earnings', 'Retained earning'),
+            },
+            {
+                'default_label': 'Owner current account',
+                'col_key': 'owner_current_account',
+                'aliases': ('Owner current account', "Owner's current account"),
+            },
+            {
+                'default_label': 'Statutory reserves',
+                'col_key': 'statutory_reserves',
+                'aliases': ('Statutory reserves', 'Statutory reserve'),
+            },
+        ]
+        existing_lines = []
+        if sofp_sheet is not None:
+            sofp_rows = self._get_sofp_link_rows(sofp_sheet)
+            start_row = sofp_rows.get('equity')
+            end_row = sofp_rows.get('total_equity')
+            if start_row and end_row and end_row > start_row:
+                for row_idx in range(start_row + 1, end_row):
+                    row_label = sofp_sheet.cell(row=row_idx, column=1).value
+                    normalized_label = self._normalize_key(row_label or '')
+                    if not normalized_label:
+                        continue
+                    for spec in line_specs:
+                        aliases = {self._normalize_key(alias) for alias in spec['aliases']}
+                        if normalized_label not in aliases:
+                            continue
+                        existing_lines.append((row_label or spec['default_label'], spec['col_key']))
+                        break
+
+        lines = existing_lines or [
+            (spec['default_label'], spec['col_key'])
+            for spec in line_specs[:3]
+        ]
+        return [
+            {
+                'label': label,
+                'current_formula': _ref(col_key, current_close_row),
+                'prior_formula': _ref(col_key, prior_close_row),
+            }
+            for label, col_key in lines
+            if cols.get(col_key)
+        ]
+
+    def _link_specific_sofp_equity_rows_to_soce(self, sofp_sheet, workbook, *, show_prior):
+        if sofp_sheet is None:
+            return
+        soce_sheet = self._get_sheet_if_exists(workbook, 'SOCE')
+        if soce_sheet is None:
+            return
+
+        soce_layout = self._get_soce_link_layout(soce_sheet)
+        cols = soce_layout.get('cols') or {}
+        rows = soce_layout.get('rows') or {}
+        prior_close_row = rows.get('prior_close')
+        current_close_row = rows.get('current_close')
+        if not prior_close_row or not current_close_row:
+            return
+
+        mappings = (
+            ('share_capital', ['Share capital', 'Share Capital']),
+            ('retained_earnings', ['Retained earnings', 'Retained earning']),
+            ('owner_current_account', ['Owner current account', "Owner's current account"]),
+        )
+        for col_key, labels in mappings:
+            soce_col = cols.get(col_key)
+            if not soce_col:
+                continue
+            sofp_row = self._find_row_by_keys(sofp_sheet, labels)
+            if not sofp_row:
+                continue
+            soce_col_letter = get_column_letter(soce_col)
+            sofp_sheet[f'B{sofp_row}'] = f'=SOCE!{soce_col_letter}{current_close_row}'
+            if show_prior:
+                sofp_sheet[f'C{sofp_row}'] = f'=SOCE!{soce_col_letter}{prior_close_row}'
+            else:
+                sofp_sheet[f'C{sofp_row}'] = None
+
+    def _get_soce_link_layout(self, sheet):
+        if sheet is None:
+            return {'rows': {}, 'cols': {}}
+
+        header_end_row = min(sheet.max_row, 10)
+        balance_rows = []
+        for row_idx in range(1, sheet.max_row + 1):
+            normalized_value = self._normalize_key(sheet.cell(row=row_idx, column=1).value or '')
+            if 'balanceasat' in normalized_value or normalized_value == 'balancecf':
+                balance_rows.append(row_idx)
+
+        explicit_prior_close = (
+            self._find_row_by_label(sheet, 'Balance as at end of period')
+            or self._find_row_containing_text(sheet, 'Balance as at', occurrence=2)
+        )
+        explicit_current_close = (
+            self._find_row_by_label(sheet, 'Balance c/f')
+            or self._find_row_containing_text(sheet, 'Balance as at', occurrence=3)
+        )
+        prior_close_row = explicit_prior_close
+        current_close_row = explicit_current_close
+        if not prior_close_row and len(balance_rows) >= 2:
+            prior_close_row = balance_rows[1]
+        if not current_close_row:
+            if len(balance_rows) >= 3:
+                current_close_row = balance_rows[2]
+            elif len(balance_rows) >= 2:
+                current_close_row = balance_rows[-1]
+
+        opening_balance_row = self._find_row_by_label(sheet, 'Balance as at start of period')
+        if not opening_balance_row and balance_rows:
+            opening_balance_row = balance_rows[0]
+
+        cols = {
+            'share_capital': self._find_column_by_label(sheet, 'Share capital', start_row=1, end_row=header_end_row),
+            'owner_current_account': self._find_column_by_keys(
+                sheet,
+                ["Owner's current account", 'Owner current account'],
+                start_row=1,
+                end_row=header_end_row,
+            ),
+            'retained_earnings': self._find_column_by_label(
+                sheet, 'Retained earnings', start_row=1, end_row=header_end_row
+            ),
+            'statutory_reserves': self._find_column_by_keys(
+                sheet, ['Statutory reserves', 'Statutory reserve'], start_row=1, end_row=header_end_row
+            ),
+            'total': self._find_column_by_label(sheet, 'Total', start_row=1, end_row=header_end_row),
+        }
+        rows = {
+            'opening_balance': opening_balance_row,
+            'prior_share_movement': self._find_row_by_label(sheet, 'Paid up capital', occurrence=1),
+            'prior_owner_movement': self._find_row_by_keys(
+                sheet,
+                ["Movement in owner's current account", 'Movement in owner current account', "Net movement in owner's current account"],
+                start_row=1,
+                end_row=sheet.max_row,
+            ),
+            'prior_net_profit': self._find_row_by_keys(
+                sheet, ['Net profit / (loss)', 'Net profit', 'Net profit for the period'], start_row=1, end_row=sheet.max_row
+            ),
+            'prior_transfer': self._find_row_by_keys(
+                sheet, ['Transfer to reserve', 'Transfer to statutory reserve'], start_row=1, end_row=sheet.max_row
+            ),
+            'prior_dividend': self._find_row_by_label(sheet, 'Dividend paid', occurrence=1),
+            'prior_close': prior_close_row,
+            'current_share_movement': self._find_row_by_label(sheet, 'Paid up capital', occurrence=2),
+            'current_owner_movement': self._find_row_by_keys(
+                sheet,
+                ["Movement in owner's current account", 'Movement in owner current account', "Net movement in owner's current account"],
+                start_row=(prior_close_row or 1) + 1,
+                end_row=sheet.max_row,
+            ),
+            'current_net_profit': self._find_row_by_keys(
+                sheet,
+                ['Net profit / (loss)', 'Net profit', 'Net profit for the period'],
+                start_row=(prior_close_row or 1) + 1,
+                end_row=sheet.max_row,
+            ),
+            'current_transfer': self._find_row_by_keys(
+                sheet,
+                ['Transfer to reserve', 'Transfer to statutory reserve'],
+                start_row=(prior_close_row or 1) + 1,
+                end_row=sheet.max_row,
+                occurrence=1,
+            ),
+            'current_dividend': self._find_row_by_label(sheet, 'Dividend paid', occurrence=2),
+            'current_close': current_close_row,
+        }
+        return {'rows': rows, 'cols': cols}
+
+    def _get_socf_link_rows(self, sheet):
+        if sheet is None:
+            return {}
+        return {
+            'net_profit': self._find_row_by_keys(sheet, ['Net profit for the year', 'Net profit for the period']),
+            'operating_before_wc': self._find_row_by_keys(
+                sheet,
+                [
+                    'Operating cash flows before changes in working capital',
+                    'Operating cash flows before working capital changes',
+                ],
+            ),
+            'change_current_assets': self._find_row_by_keys(
+                sheet,
+                ['(Increase) / decrease in current assets', 'Increase / decrease in current assets'],
+            ),
+            'change_current_liabilities': self._find_row_by_keys(
+                sheet,
+                ['Increase / (decrease) in current liabilities', 'Increase / decrease in current liabilities'],
+            ),
+            'net_operations': self._find_row_by_keys(
+                sheet,
+                ['Net cash generated from operations', 'Net cash (used in) operations'],
+            ),
+            'property': self._find_row_by_label(sheet, 'Property, plant and equipment'),
+            'security_deposit': self._find_row_by_label(sheet, 'Security deposit'),
+            'net_investing': self._find_row_by_keys(
+                sheet,
+                ['Net cash generated from investing activities', 'Net cash (used in) investing activities'],
+            ),
+            'paid_up_capital': self._find_row_by_label(sheet, 'Paid up capital'),
+            'dividend_paid': self._find_row_by_label(sheet, 'Dividend paid'),
+            'owner_current_account': self._find_row_by_label(sheet, 'Owner current account'),
+            'related_party_loan': self._find_row_by_label(sheet, 'Loan from related party'),
+            'net_financing': self._find_row_by_keys(
+                sheet,
+                ['Net cash generated from financing activities', 'Net cash (used in) financing activities'],
+            ),
+            'net_increase': self._find_row_by_keys(
+                sheet,
+                [
+                    'Net increase in cash and cash equivalents',
+                    'Net increase / (decrease) in cash and cash equivalents',
+                ],
+            ),
+            'cash_beginning': self._find_row_by_keys(
+                sheet,
+                ['Cash and cash equivalents, beginning of the period', 'Cash and cash equivalents at the beginning'],
+            ),
+            'cash_end': self._find_row_by_keys(
+                sheet,
+                ['Cash and cash equivalents, end of the period', 'Cash and cash equivalents at the end'],
+            ),
+        }
+
+    def _stage_g_hide_prior_year_live_link_columns(self, stage_c_context, selected_sheet_names):
+        periods = self._get_reporting_periods()
+        if periods.get('show_prior_year'):
+            return
+
+        workbook = stage_c_context.get('workbook')
+        if not workbook:
+            return
+
+        for sheet_name in ('SOFP', 'SOCI', 'SOCF'):
+            if sheet_name not in selected_sheet_names or sheet_name not in workbook.sheetnames:
+                continue
+            sheet = workbook[sheet_name]
+            sheet['C6'] = None
+            for row_idx in range(7, sheet.max_row + 1):
+                sheet[f'C{row_idx}'] = None
+
     def _link_sofp_to_tb_metrics(self, workbook, metric_refs, tb_sheet_name):
         sheet = self._get_sheet_if_exists(workbook, 'SOFP')
         if sheet is None:
             return
+        show_prior = bool(self._get_reporting_periods().get('show_prior_year'))
 
-        self._ensure_sofp_hierarchy_rows(sheet)
-        soci_net_profit_row = self._get_soci_net_profit_row(workbook)
-
-        rows = {
-            'non_current_assets': self._find_row_by_label(sheet, 'Non-current assets'),
-            'ppe': self._find_row_by_label(sheet, 'Property, plant and equipment'),
-            'total_non_current_assets': self._find_row_by_label(sheet, 'Total non-current assets'),
-            'current_assets': self._find_row_by_label(sheet, 'Current assets'),
-            'accounts_receivable': self._find_row_by_label(sheet, 'Accounts receivable'),
-            'prepayment': self._find_row_by_label(sheet, 'Prepayment'),
-            'prepayment_advances': self._find_row_by_label(sheet, 'Advances'),
-            'prepayment_prepaid_expenses': self._find_row_by_label(sheet, 'Prepaid expenses'),
-            'prepayment_other_receivables': self._find_row_by_label(sheet, 'Other receivables'),
-            'vat_recoverable': self._find_row_by_label(sheet, 'VAT recoverable'),
-            'cash_bank': self._find_row_by_label(sheet, 'Cash and bank balances'),
-            'total_current_assets': self._find_row_by_label(sheet, 'Total current assets'),
-            'total_assets': self._find_row_by_label(sheet, 'Total assets'),
-            'share_capital': self._find_row_by_label(sheet, 'Share capital'),
-            'retained_earnings': self._find_row_by_label(sheet, 'Retained earnings'),
-            'owner_current_account': self._find_row_by_label(sheet, 'Owner current account'),
-            'total_equity': self._find_row_by_label(sheet, 'Total Equity'),
-            'non_current_liabilities': self._find_row_by_label(sheet, 'Non-current liabilities'),
-            'long_term_loans': self._find_row_by_label(sheet, 'Long-term loans'),
-            'current_liabilities': self._find_row_by_label(sheet, 'Current liabilities'),
-            'cl_bank_overdraft': self._find_row_by_label(sheet, 'Bank overdraft'),
-            'cl_short_term_loan': self._find_row_by_label(sheet, 'Short-term loan'),
-            'cl_credit_card': self._find_row_by_label(sheet, 'Credit card payable'),
-            'cl_lease_liability': self._find_row_by_label(sheet, 'Lease liability'),
-            'cl_trade_payables': self._find_row_by_label(sheet, 'Trade payables'),
-            'cl_other_payables': self._find_row_by_label(sheet, 'Other payables'),
-            'cl_corporate_tax': self._find_row_by_label(sheet, 'Corporate tax liability'),
-            'accrual': self._find_row_by_label(sheet, 'Audit and accounting accrual'),
-            'vat_payable': self._find_row_by_label(sheet, 'VAT payable'),
-            'total_liabilities': self._find_row_by_label(sheet, 'Total Liabilities'),
-            'total_equity_liabilities': self._find_row_by_label(sheet, 'Total Equity and Liabilities'),
-        }
+        rows = self._get_sofp_link_rows(sheet)
         if not all(rows.values()):
             return
 
-        for key in ('non_current_assets', 'prepayment', 'current_liabilities', 'non_current_liabilities'):
-            sheet[f"B{rows[key]}"] = None
-            sheet[f"C{rows[key]}"] = None
+        sofp_lines = self._build_sofp_live_link_lines(metric_refs, show_prior)
+        equity_lines = self._build_sofp_equity_formula_lines(workbook, sofp_sheet=sheet)
 
-        sofp_value_rows = [
-            ('ppe', 'sofp_ppe'),
-            ('accounts_receivable', 'sofp_accounts_receivable'),
-            ('prepayment_advances', 'sofp_prepayment_advances'),
-            ('prepayment_prepaid_expenses', 'sofp_prepayment_prepaid_expenses'),
-            ('prepayment_other_receivables', 'sofp_prepayment_other_receivables'),
-            ('vat_recoverable', 'sofp_vat_recoverable'),
-            ('cash_bank', 'sofp_cash_bank'),
-            ('share_capital', 'share_capital_close'),
-            ('owner_current_account', 'owner_current_account_close'),
-            ('long_term_loans', 'sofp_non_current_liabilities_total'),
-            ('cl_bank_overdraft', 'sofp_cl_bank_overdraft'),
-            ('cl_short_term_loan', 'sofp_cl_short_term_loan'),
-            ('cl_credit_card', 'sofp_cl_credit_card_payable'),
-            ('cl_lease_liability', 'sofp_cl_lease_liability'),
-            ('cl_trade_payables', 'sofp_cl_trade_payables'),
-            ('cl_other_payables', 'sofp_cl_other_payables'),
-            ('cl_corporate_tax', 'sofp_cl_corporate_tax_liability'),
-            ('accrual', 'sofp_current_liabilities_accrual'),
-            ('vat_payable', 'sofp_current_liabilities_vat'),
-        ]
-        for row_key, metric_key in sofp_value_rows:
-            row_idx = rows[row_key]
-            sheet[f'B{row_idx}'] = self._metric_ref(metric_refs, metric_key, 'current')
-            sheet[f'C{row_idx}'] = self._metric_ref(metric_refs, metric_key, 'prior')
+        non_current_asset_rows = self._ar_ensure_detail_rows(
+            sheet, 'Non-current assets', ['Total non-current assets'], len(sofp_lines.get('non_current_assets', []))
+        )
+        self._write_dynamic_formula_rows(
+            sheet, non_current_asset_rows, sofp_lines.get('non_current_assets', []), show_prior
+        )
 
-        retained_row = rows['retained_earnings']
-        sheet[f'B{retained_row}'] = (
-            f"={self._metric_expr(metric_refs, 'retained_earnings_open', 'current')}+SOCI!B{soci_net_profit_row}"
-            f"+{self._metric_expr(metric_refs, 'dividend_paid', 'current')}"
-            f"-{self._metric_expr(metric_refs, 'statutory_transfer', 'current')}"
+        current_asset_rows = self._ar_ensure_detail_rows(
+            sheet, 'Current assets', ['Total current assets'], len(sofp_lines.get('current_assets', []))
         )
-        sheet[f'C{retained_row}'] = (
-            f"={self._metric_expr(metric_refs, 'retained_earnings_open', 'prior')}+SOCI!C{soci_net_profit_row}"
-            f"+{self._metric_expr(metric_refs, 'dividend_paid', 'prior')}"
-            f"-{self._metric_expr(metric_refs, 'statutory_transfer', 'prior')}"
+        self._write_dynamic_formula_rows(
+            sheet, current_asset_rows, sofp_lines.get('current_assets', []), show_prior
         )
+
+        equity_rows = self._ar_ensure_detail_rows(
+            sheet, 'Equity', ['Total Equity', 'Total equity'], len(equity_lines)
+        )
+        self._write_dynamic_formula_rows(sheet, equity_rows, equity_lines, show_prior)
+
+        non_current_liability_rows = self._ar_ensure_detail_rows(
+            sheet, 'Non-current liabilities', ['Current liabilities'], len(sofp_lines.get('non_current_liabilities', []))
+        )
+        self._write_dynamic_formula_rows(
+            sheet, non_current_liability_rows, sofp_lines.get('non_current_liabilities', []), show_prior
+        )
+
+        current_liability_rows = self._ar_ensure_detail_rows(
+            sheet, 'Current liabilities', ['Total Liabilities'], len(sofp_lines.get('current_liabilities', []))
+        )
+        self._write_dynamic_formula_rows(
+            sheet, current_liability_rows, sofp_lines.get('current_liabilities', []), show_prior
+        )
+
+        rows = self._get_sofp_link_rows(sheet)
+        if not all(rows.values()):
+            return
+
+        self._link_specific_sofp_equity_rows_to_soce(sheet, workbook, show_prior=show_prior)
 
         total_non_current_row = rows['total_non_current_assets']
         total_current_assets_row = rows['total_current_assets']
@@ -2177,8 +3175,8 @@ class AuditExcelExportWizard(models.TransientModel):
         sheet[f'C{total_current_assets_row}'] = f"=SUM(C{rows['current_assets']}:C{total_current_assets_row - 1})"
         sheet[f'B{total_assets_row}'] = f"=B{total_current_assets_row}+B{total_non_current_row}"
         sheet[f'C{total_assets_row}'] = f"=C{total_current_assets_row}+C{total_non_current_row}"
-        sheet[f'B{total_equity_row}'] = f"=SUM(B{rows['share_capital']}:B{rows['owner_current_account']})"
-        sheet[f'C{total_equity_row}'] = f"=SUM(C{rows['share_capital']}:C{rows['owner_current_account']})"
+        sheet[f'B{total_equity_row}'] = f"=SUM(B{rows['equity']}:B{total_equity_row - 1})"
+        sheet[f'C{total_equity_row}'] = f"=SUM(C{rows['equity']}:C{total_equity_row - 1})"
         sheet[f'B{total_liabilities_row}'] = f"=SUM(B{rows['non_current_liabilities']}:B{total_liabilities_row - 1})"
         sheet[f'C{total_liabilities_row}'] = f"=SUM(C{rows['non_current_liabilities']}:C{total_liabilities_row - 1})"
         sheet[f'B{total_equity_liabilities_row}'] = f"=B{total_liabilities_row}+B{total_equity_row}"
@@ -2213,18 +3211,28 @@ class AuditExcelExportWizard(models.TransientModel):
             row_gross_profit,
             row_operating_heading,
             row_total_operating,
-            row_investment_gain_loss,
             row_other_income,
             row_net_profit,
         )):
             return
 
-        sheet[f'B{row_revenue}'] = self._metric_ref(metric_refs, 'soci_revenue', 'current')
-        sheet[f'C{row_revenue}'] = self._metric_ref(metric_refs, 'soci_revenue', 'prior')
-        sheet[f'B{row_revenue_related}'] = self._metric_ref(metric_refs, 'soci_revenue_related', 'current')
-        sheet[f'C{row_revenue_related}'] = self._metric_ref(metric_refs, 'soci_revenue_related', 'prior')
-        sheet[f'B{row_direct_cost}'] = self._metric_ref(metric_refs, 'soci_direct_cost', 'current')
-        sheet[f'C{row_direct_cost}'] = self._metric_ref(metric_refs, 'soci_direct_cost', 'prior')
+        tb_context = metric_refs.get('__tb_link_context__') or {}
+
+        def soci_formula(metric_key, period):
+            direct_formula = self._tb_soci_metric_formula(tb_context, metric_key, is_prior=(period == 'prior'))
+            if direct_formula:
+                return direct_formula
+            return self._metric_ref(metric_refs, metric_key, period)
+
+        def soci_expr(metric_key, period):
+            return self._tb_formula_expr(soci_formula(metric_key, period))
+
+        sheet[f'B{row_revenue}'] = soci_formula('soci_revenue', 'current')
+        sheet[f'C{row_revenue}'] = soci_formula('soci_revenue', 'prior')
+        sheet[f'B{row_revenue_related}'] = soci_formula('soci_revenue_related', 'current')
+        sheet[f'C{row_revenue_related}'] = soci_formula('soci_revenue_related', 'prior')
+        sheet[f'B{row_direct_cost}'] = soci_formula('soci_direct_cost', 'current')
+        sheet[f'C{row_direct_cost}'] = soci_formula('soci_direct_cost', 'prior')
 
         sheet[f'B{row_operating_heading}'] = None
         sheet[f'C{row_operating_heading}'] = None
@@ -2234,32 +3242,76 @@ class AuditExcelExportWizard(models.TransientModel):
                 sheet[f'B{row_idx}'] = None
                 sheet[f'C{row_idx}'] = None
                 continue
-            sheet[f'B{row_idx}'] = self._metric_ref(metric_refs, line['metric'], 'current')
-            sheet[f'C{row_idx}'] = self._metric_ref(metric_refs, line['metric'], 'prior')
+            sheet[f'B{row_idx}'] = soci_formula(line['metric'], 'current')
+            sheet[f'C{row_idx}'] = soci_formula(line['metric'], 'prior')
 
-        sheet[f'B{row_other_income}'] = self._metric_ref(metric_refs, 'soci_other_income', 'current')
-        sheet[f'C{row_other_income}'] = self._metric_ref(metric_refs, 'soci_other_income', 'prior')
-        sheet[f'B{row_investment_gain_loss}'] = self._metric_ref(metric_refs, 'soci_investment_gain_loss', 'current')
-        sheet[f'C{row_investment_gain_loss}'] = self._metric_ref(metric_refs, 'soci_investment_gain_loss', 'prior')
+        if row_investment_gain_loss:
+            sheet[f'B{row_other_income}'] = soci_formula('soci_other_income', 'current')
+            sheet[f'C{row_other_income}'] = soci_formula('soci_other_income', 'prior')
+            sheet[f'B{row_investment_gain_loss}'] = soci_formula('soci_investment_gain_loss', 'current')
+            sheet[f'C{row_investment_gain_loss}'] = soci_formula('soci_investment_gain_loss', 'prior')
+        else:
+            other_income_current = soci_expr('soci_other_income', 'current')
+            other_income_prior = soci_expr('soci_other_income', 'prior')
+            investment_current = soci_expr('soci_investment_gain_loss', 'current')
+            investment_prior = soci_expr('soci_investment_gain_loss', 'prior')
+            sheet[f'B{row_other_income}'] = f'=({other_income_current})+({investment_current})'
+            sheet[f'C{row_other_income}'] = f'=({other_income_prior})+({investment_prior})'
 
         sheet[f'B{row_gross_profit}'] = f"=B{row_revenue}+B{row_revenue_related}-B{row_direct_cost}"
         sheet[f'C{row_gross_profit}'] = f"=C{row_revenue}+C{row_revenue_related}-C{row_direct_cost}"
         sheet[f'B{row_total_operating}'] = f"=SUM(B{row_operating_heading + 1}:B{row_total_operating - 1})"
         sheet[f'C{row_total_operating}'] = f"=SUM(C{row_operating_heading + 1}:C{row_total_operating - 1})"
-        sheet[f'B{row_net_profit}'] = (
-            f"=B{row_gross_profit}-B{row_total_operating}+B{row_investment_gain_loss}+B{row_other_income}"
-        )
-        sheet[f'C{row_net_profit}'] = (
-            f"=C{row_gross_profit}-C{row_total_operating}+C{row_investment_gain_loss}+C{row_other_income}"
-        )
+        if row_investment_gain_loss:
+            sheet[f'B{row_net_profit}'] = (
+                f"=B{row_gross_profit}-B{row_total_operating}+B{row_investment_gain_loss}+B{row_other_income}"
+            )
+            sheet[f'C{row_net_profit}'] = (
+                f"=C{row_gross_profit}-C{row_total_operating}+C{row_investment_gain_loss}+C{row_other_income}"
+            )
+        else:
+            sheet[f'B{row_net_profit}'] = f"=B{row_gross_profit}-B{row_total_operating}+B{row_other_income}"
+            sheet[f'C{row_net_profit}'] = f"=C{row_gross_profit}-C{row_total_operating}+C{row_other_income}"
 
     def _link_soce_to_tb_metrics(self, workbook, metric_refs, tb_sheet_name):
         sheet = self._get_sheet_if_exists(workbook, 'SOCE')
         if sheet is None:
             return
 
-        self._ensure_soce_dividend_rows(sheet)
+        self._ensure_soce_dividend_rows(sheet, metric_refs=metric_refs)
         soci_net_profit_row = self._get_soci_net_profit_row(workbook)
+        soce_layout = self._get_soce_link_layout(sheet)
+        rows = soce_layout.get('rows') or {}
+        cols = soce_layout.get('cols') or {}
+        value_col_keys = ('share_capital', 'owner_current_account', 'retained_earnings', 'statutory_reserves')
+
+        required_rows = (
+            'opening_balance',
+            'prior_share_movement',
+            'prior_owner_movement',
+            'prior_net_profit',
+            'prior_transfer',
+            'prior_close',
+            'current_share_movement',
+            'current_owner_movement',
+            'current_net_profit',
+            'current_transfer',
+            'current_close',
+        )
+        if not all(rows.get(key) for key in required_rows):
+            return
+        if not all(cols.get(key) for key in value_col_keys):
+            return
+
+        def set_formula(row_key, col_key, formula):
+            row_idx = rows.get(row_key)
+            col_idx = cols.get(col_key)
+            if not row_idx or not col_idx:
+                return
+            sheet.cell(row=row_idx, column=col_idx, value=formula)
+
+        def col_letter(col_key):
+            return get_column_letter(cols[col_key])
 
         share_close_prior = self._metric_expr(metric_refs, 'share_capital_close', 'prior')
         share_mov_prior = self._metric_expr(metric_refs, 'share_capital_movement', 'prior')
@@ -2269,76 +3321,329 @@ class AuditExcelExportWizard(models.TransientModel):
         statutory_close_prior = self._metric_expr(metric_refs, 'statutory_reserve_close', 'prior')
         statutory_transfer_prior = self._metric_expr(metric_refs, 'statutory_transfer', 'prior')
         statutory_transfer_current = self._metric_expr(metric_refs, 'statutory_transfer', 'current')
+        prior_dividend_row = rows.get('prior_dividend')
+        current_dividend_row = rows.get('current_dividend')
 
-        sheet['B7'] = f"={share_close_prior}-{share_mov_prior}"
-        sheet['C7'] = f"={owner_close_prior}-{owner_mov_prior}"
-        sheet['D7'] = retained_open_prior_ref
-        sheet['E7'] = f"={statutory_close_prior}-{statutory_transfer_prior}"
+        set_formula('opening_balance', 'share_capital', f"={share_close_prior}-{share_mov_prior}")
+        set_formula('opening_balance', 'owner_current_account', f"={owner_close_prior}-{owner_mov_prior}")
+        set_formula('opening_balance', 'retained_earnings', retained_open_prior_ref)
+        set_formula('opening_balance', 'statutory_reserves', f"={statutory_close_prior}-{statutory_transfer_prior}")
 
-        sheet['B8'] = self._metric_ref(metric_refs, 'share_capital_movement', 'prior')
-        sheet['C9'] = self._metric_ref(metric_refs, 'owner_current_account_movement', 'prior')
-        sheet['D10'] = f'=SOCI!C{soci_net_profit_row}'
-        sheet['D11'] = f"=-{statutory_transfer_prior}"
-        sheet['E11'] = self._metric_ref(metric_refs, 'statutory_transfer', 'prior')
-        sheet['D12'] = self._metric_ref(metric_refs, 'dividend_paid', 'prior')
+        set_formula('prior_share_movement', 'share_capital', self._metric_ref(metric_refs, 'share_capital_movement', 'prior'))
+        set_formula(
+            'prior_owner_movement',
+            'owner_current_account',
+            self._metric_ref(metric_refs, 'owner_current_account_movement', 'prior'),
+        )
+        set_formula('prior_net_profit', 'retained_earnings', f'=SOCI!C{soci_net_profit_row}')
+        set_formula('prior_transfer', 'retained_earnings', f"=-{statutory_transfer_prior}")
+        set_formula('prior_transfer', 'statutory_reserves', self._metric_ref(metric_refs, 'statutory_transfer', 'prior'))
+        if prior_dividend_row:
+            set_formula('prior_dividend', 'retained_earnings', self._metric_ref(metric_refs, 'dividend_paid', 'prior'))
 
-        sheet['B14'] = self._metric_ref(metric_refs, 'share_capital_movement', 'current')
-        sheet['C15'] = self._metric_ref(metric_refs, 'owner_current_account_movement', 'current')
-        sheet['D16'] = f'=SOCI!B{soci_net_profit_row}'
-        sheet['D17'] = f"=-{statutory_transfer_current}"
-        sheet['E17'] = self._metric_ref(metric_refs, 'statutory_transfer', 'current')
-        sheet['D18'] = self._metric_ref(metric_refs, 'dividend_paid', 'current')
+        set_formula('current_share_movement', 'share_capital', self._metric_ref(metric_refs, 'share_capital_movement', 'current'))
+        set_formula(
+            'current_owner_movement',
+            'owner_current_account',
+            self._metric_ref(metric_refs, 'owner_current_account_movement', 'current'),
+        )
+        set_formula('current_net_profit', 'retained_earnings', f'=SOCI!B{soci_net_profit_row}')
+        set_formula('current_transfer', 'retained_earnings', f"=-{statutory_transfer_current}")
+        set_formula('current_transfer', 'statutory_reserves', self._metric_ref(metric_refs, 'statutory_transfer', 'current'))
+        if current_dividend_row:
+            set_formula('current_dividend', 'retained_earnings', self._metric_ref(metric_refs, 'dividend_paid', 'current'))
 
-        for col in ('B', 'C', 'D', 'E'):
-            sheet[f'{col}13'] = f'=SUM({col}7:{col}12)'
-            sheet[f'{col}19'] = f'=SUM({col}13:{col}18)'
-        for row in (7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18):
-            sheet[f'F{row}'] = f'=SUM(B{row}:E{row})'
-        sheet['F13'] = '=SUM(F7:F12)'
-        sheet['F19'] = '=SUM(F13:F18)'
+        for col_key in value_col_keys:
+            letter = col_letter(col_key)
+            prior_close_end_row = prior_dividend_row or (rows['prior_close'] - 1)
+            current_close_end_row = current_dividend_row or (rows['current_close'] - 1)
+            sheet.cell(
+                row=rows['prior_close'],
+                column=cols[col_key],
+                value=f'=SUM({letter}{rows["opening_balance"]}:{letter}{prior_close_end_row})',
+            )
+            sheet.cell(
+                row=rows['current_close'],
+                column=cols[col_key],
+                value=f'=SUM({letter}{rows["prior_close"]}:{letter}{current_close_end_row})',
+            )
+
+        total_col = cols.get('total')
+        if total_col:
+            first_value_col = get_column_letter(min(cols[key] for key in value_col_keys))
+            last_value_col = get_column_letter(max(cols[key] for key in value_col_keys))
+            total_rows = [
+                'opening_balance',
+                'prior_share_movement',
+                'prior_owner_movement',
+                'prior_net_profit',
+                'prior_transfer',
+                'prior_close',
+                'current_share_movement',
+                'current_owner_movement',
+                'current_net_profit',
+                'current_transfer',
+                'current_close',
+            ]
+            if prior_dividend_row:
+                total_rows.append('prior_dividend')
+            if current_dividend_row:
+                total_rows.append('current_dividend')
+            for row_key in total_rows:
+                row_idx = rows.get(row_key)
+                if not row_idx:
+                    continue
+                sheet.cell(row=row_idx, column=total_col, value=f'=SUM({first_value_col}{row_idx}:{last_value_col}{row_idx})')
 
     def _link_socf_to_tb_metrics(self, workbook, metric_refs, tb_sheet_name):
         sheet = self._get_sheet_if_exists(workbook, 'SOCF')
         if sheet is None:
             return
 
-        self._ensure_socf_dividend_row(sheet)
+        self._ensure_socf_dividend_row(sheet, metric_refs=metric_refs)
         soci_net_profit_row = self._get_soci_net_profit_row(workbook)
+        rows = self._get_socf_link_rows(sheet)
+        required_rows = (
+            'net_profit',
+            'operating_before_wc',
+            'change_current_assets',
+            'change_current_liabilities',
+            'net_operations',
+            'property',
+            'net_investing',
+            'paid_up_capital',
+            'owner_current_account',
+            'net_financing',
+            'net_increase',
+            'cash_beginning',
+            'cash_end',
+        )
+        if not all(rows.get(key) for key in required_rows):
+            return
 
-        dep_current = self._metric_expr(metric_refs, 'socf_depreciation_movement', 'current')
-        dep_prior = self._metric_expr(metric_refs, 'socf_depreciation_movement', 'prior')
-        eosb_adj_current = self._metric_expr(metric_refs, 'socf_eosb_adjustment', 'current')
-        eosb_adj_prior = self._metric_expr(metric_refs, 'socf_eosb_adjustment', 'prior')
+        def set_formula(row_key, col_letter, formula):
+            row_idx = rows.get(row_key)
+            if not row_idx:
+                return
+            sheet[f'{col_letter}{row_idx}'] = formula
 
-        sheet['B9'] = f'=SOCI!B{soci_net_profit_row}'
-        sheet['C9'] = f'=SOCI!C{soci_net_profit_row}'
-        sheet['B10'] = f"=B9+{dep_current}+{eosb_adj_current}"
-        sheet['C10'] = f"=C9+{dep_prior}+{eosb_adj_prior}"
-        sheet['B12'] = self._metric_ref(metric_refs, 'socf_change_current_assets', 'current')
-        sheet['C12'] = self._metric_ref(metric_refs, 'socf_change_current_assets', 'prior')
-        sheet['B13'] = self._metric_ref(metric_refs, 'socf_change_current_liabilities', 'current')
-        sheet['C13'] = self._metric_ref(metric_refs, 'socf_change_current_liabilities', 'prior')
-        sheet['B16'] = self._metric_ref(metric_refs, 'socf_property_investing', 'current')
-        sheet['C16'] = self._metric_ref(metric_refs, 'socf_property_investing', 'prior')
-        sheet['B19'] = self._metric_ref(metric_refs, 'share_capital_movement', 'current')
-        sheet['C19'] = self._metric_ref(metric_refs, 'share_capital_movement', 'prior')
-        sheet['B20'] = self._metric_ref(metric_refs, 'dividend_paid', 'current')
-        sheet['C20'] = self._metric_ref(metric_refs, 'dividend_paid', 'prior')
-        sheet['B21'] = self._metric_ref(metric_refs, 'owner_current_account_movement', 'current')
-        sheet['C21'] = self._metric_ref(metric_refs, 'owner_current_account_movement', 'prior')
-        sheet['C24'] = self._metric_ref(metric_refs, 'socf_cash_equivalent_opening', 'prior')
+        sofp_sheet = self._get_sheet_if_exists(workbook, 'SOFP')
+        sofp_rows = self._get_sofp_link_rows(sofp_sheet) if sofp_sheet else {}
+        sofp_cash_row = self._find_row_by_label(sofp_sheet, 'Cash and bank balances') if sofp_sheet else None
+        sofp_property_row = self._find_row_by_keys(
+            sofp_sheet,
+            ['Property, plant and equipment', 'Property plant and equipment'],
+        ) if sofp_sheet else None
+        sofp_security_deposit_row = self._find_row_by_label(sofp_sheet, 'Security deposit') if sofp_sheet else None
+        sofp_related_party_loan_row = self._find_row_by_label(sofp_sheet, 'Loan from related party') if sofp_sheet else None
+        sofp_owner_current_account_row = self._find_row_by_label(sofp_sheet, 'Owner current account') if sofp_sheet else None
+        sofp_share_capital_row = self._find_row_by_keys(
+            sofp_sheet,
+            ['Share capital', 'Share Capital'],
+        ) if sofp_sheet else None
 
-        sheet['B14'] = '=SUM(B10:B13)'
-        sheet['C14'] = '=SUM(C10:C13)'
-        sheet['B17'] = '=SUM(B15:B16)'
-        sheet['C17'] = '=SUM(C15:C16)'
-        sheet['B22'] = '=SUM(B18:B21)'
-        sheet['C22'] = '=SUM(C18:C21)'
-        sheet['B23'] = '=B22+B17+B14'
-        sheet['C23'] = '=C22+C17+C14'
-        sheet['B24'] = '=C25'
-        sheet['B25'] = '=SUM(B23:B24)'
-        sheet['C25'] = '=SUM(C23:C24)'
+        def _sofp_row_expr(row_idx, period):
+            if not row_idx:
+                return None
+            col_letter = 'C' if period == 'prior' else 'B'
+            return f'SOFP!{col_letter}{row_idx}'
+
+        def _sofp_delta_formula(row_idx, period, *, positive_when_increase):
+            if period != 'current' or not row_idx:
+                return None
+            current_expr = _sofp_row_expr(row_idx, 'current')
+            prior_expr = _sofp_row_expr(row_idx, 'prior')
+            if not current_expr or not prior_expr:
+                return None
+            if positive_when_increase:
+                return f'=({current_expr})-({prior_expr})'
+            return f'=({prior_expr})-({current_expr})'
+
+        def _sofp_current_assets_formula(period):
+            if period != 'current':
+                return None
+            total_current_assets_row = sofp_rows.get('total_current_assets')
+            if not total_current_assets_row:
+                return None
+
+            current_expr = _sofp_row_expr(total_current_assets_row, 'current')
+            prior_expr = _sofp_row_expr(total_current_assets_row, 'prior')
+            if sofp_cash_row:
+                current_expr = f'({current_expr})-({_sofp_row_expr(sofp_cash_row, "current")})'
+                prior_expr = f'({prior_expr})-({_sofp_row_expr(sofp_cash_row, "prior")})'
+            return f'=({prior_expr})-({current_expr})'
+
+        def _sofp_current_liabilities_formula(period):
+            if period != 'current':
+                return None
+            current_liabilities_row = sofp_rows.get('current_liabilities')
+            total_liabilities_row = sofp_rows.get('total_liabilities')
+            if not current_liabilities_row or not total_liabilities_row or total_liabilities_row <= (current_liabilities_row + 1):
+                return None
+
+            current_expr = f'SUM(SOFP!B{current_liabilities_row + 1}:SOFP!B{total_liabilities_row - 1})'
+            prior_expr = f'SUM(SOFP!C{current_liabilities_row + 1}:SOFP!C{total_liabilities_row - 1})'
+            for label in ('Short-term loan', 'Lease liability', 'Corporate tax liability'):
+                exclude_row = self._find_row_by_label(sofp_sheet, label) if sofp_sheet else None
+                if not exclude_row:
+                    continue
+                if not (current_liabilities_row < exclude_row < total_liabilities_row):
+                    continue
+                current_expr = f'({current_expr})-({_sofp_row_expr(exclude_row, "current")})'
+                prior_expr = f'({prior_expr})-({_sofp_row_expr(exclude_row, "prior")})'
+            return f'=({current_expr})-({prior_expr})'
+
+        def socf_sofp_formula(metric_key, period):
+            if not sofp_sheet:
+                return None
+
+            if metric_key == 'socf_change_current_assets':
+                return _sofp_current_assets_formula(period)
+            if metric_key == 'socf_change_current_liabilities':
+                return _sofp_current_liabilities_formula(period)
+            if metric_key == 'socf_property_investing':
+                return _sofp_delta_formula(sofp_property_row, period, positive_when_increase=False)
+            if metric_key == 'socf_security_deposit':
+                return _sofp_delta_formula(sofp_security_deposit_row, period, positive_when_increase=False)
+            if metric_key == 'socf_related_party_loan':
+                return _sofp_delta_formula(sofp_related_party_loan_row, period, positive_when_increase=True)
+            if metric_key == 'share_capital_movement':
+                return _sofp_delta_formula(sofp_share_capital_row, period, positive_when_increase=True)
+            if metric_key == 'owner_current_account_movement':
+                return _sofp_delta_formula(sofp_owner_current_account_row, period, positive_when_increase=True)
+
+            return None
+
+        tb_context = metric_refs.get('__tb_link_context__') or {}
+
+        def socf_formula(metric_key, period):
+            sofp_formula = socf_sofp_formula(metric_key, period)
+            if sofp_formula:
+                return sofp_formula
+            direct_formula = self._tb_socf_metric_formula(tb_context, metric_key, is_prior=(period == 'prior'))
+            if direct_formula:
+                return direct_formula
+            return self._metric_ref(metric_refs, metric_key, period)
+
+        def socf_expr(metric_key, period):
+            return self._tb_formula_expr(socf_formula(metric_key, period))
+
+        def metric_term(metric_key, period):
+            return f'({socf_expr(metric_key, period)})'
+
+        dep_current = socf_expr('socf_depreciation_movement', 'current')
+        dep_prior = socf_expr('socf_depreciation_movement', 'prior')
+        eosb_adj_current = socf_expr('socf_eosb_adjustment', 'current')
+        eosb_adj_prior = socf_expr('socf_eosb_adjustment', 'prior')
+
+        set_formula('net_profit', 'B', f'=SOCI!B{soci_net_profit_row}')
+        set_formula('net_profit', 'C', f'=SOCI!C{soci_net_profit_row}')
+        set_formula(
+            'operating_before_wc',
+            'B',
+            f"=B{rows['net_profit']}+{dep_current}+{eosb_adj_current}",
+        )
+        set_formula(
+            'operating_before_wc',
+            'C',
+            f"=C{rows['net_profit']}+{dep_prior}+{eosb_adj_prior}",
+        )
+        set_formula('change_current_assets', 'B', socf_formula('socf_change_current_assets', 'current'))
+        set_formula('change_current_assets', 'C', socf_formula('socf_change_current_assets', 'prior'))
+        set_formula(
+            'change_current_liabilities',
+            'B',
+            socf_formula('socf_change_current_liabilities', 'current'),
+        )
+        set_formula(
+            'change_current_liabilities',
+            'C',
+            socf_formula('socf_change_current_liabilities', 'prior'),
+        )
+        set_formula('property', 'B', socf_formula('socf_property_investing', 'current'))
+        set_formula('property', 'C', socf_formula('socf_property_investing', 'prior'))
+        if rows.get('security_deposit'):
+            set_formula('security_deposit', 'B', socf_formula('socf_security_deposit', 'current'))
+            set_formula('security_deposit', 'C', socf_formula('socf_security_deposit', 'prior'))
+        set_formula('paid_up_capital', 'B', socf_formula('share_capital_movement', 'current'))
+        set_formula('paid_up_capital', 'C', socf_formula('share_capital_movement', 'prior'))
+        if rows.get('dividend_paid'):
+            set_formula('dividend_paid', 'B', socf_formula('dividend_paid', 'current'))
+            set_formula('dividend_paid', 'C', socf_formula('dividend_paid', 'prior'))
+        set_formula(
+            'owner_current_account',
+            'B',
+            socf_formula('owner_current_account_movement', 'current'),
+        )
+        set_formula(
+            'owner_current_account',
+            'C',
+            socf_formula('owner_current_account_movement', 'prior'),
+        )
+        if rows.get('related_party_loan'):
+            set_formula('related_party_loan', 'B', socf_formula('socf_related_party_loan', 'current'))
+            set_formula('related_party_loan', 'C', socf_formula('socf_related_party_loan', 'prior'))
+        set_formula(
+            'net_operations',
+            'B',
+            f'=SUM(B{rows["operating_before_wc"]}:B{rows["change_current_liabilities"]})',
+        )
+        set_formula(
+            'net_operations',
+            'C',
+            f'=SUM(C{rows["operating_before_wc"]}:C{rows["change_current_liabilities"]})',
+        )
+        net_investing_current_terms = [f'B{rows["property"]}']
+        net_investing_prior_terms = [f'C{rows["property"]}']
+        if rows.get('security_deposit'):
+            net_investing_current_terms.append(f'B{rows["security_deposit"]}')
+            net_investing_prior_terms.append(f'C{rows["security_deposit"]}')
+        else:
+            net_investing_current_terms.append(metric_term('socf_security_deposit', 'current'))
+            net_investing_prior_terms.append(metric_term('socf_security_deposit', 'prior'))
+        set_formula('net_investing', 'B', '=' + '+'.join(net_investing_current_terms))
+        set_formula('net_investing', 'C', '=' + '+'.join(net_investing_prior_terms))
+
+        net_financing_current_terms = [f'B{rows["paid_up_capital"]}']
+        net_financing_prior_terms = [f'C{rows["paid_up_capital"]}']
+        if rows.get('dividend_paid'):
+            net_financing_current_terms.append(f'B{rows["dividend_paid"]}')
+            net_financing_prior_terms.append(f'C{rows["dividend_paid"]}')
+        else:
+            net_financing_current_terms.append(metric_term('dividend_paid', 'current'))
+            net_financing_prior_terms.append(metric_term('dividend_paid', 'prior'))
+        net_financing_current_terms.append(f'B{rows["owner_current_account"]}')
+        net_financing_prior_terms.append(f'C{rows["owner_current_account"]}')
+        if rows.get('related_party_loan'):
+            net_financing_current_terms.append(f'B{rows["related_party_loan"]}')
+            net_financing_prior_terms.append(f'C{rows["related_party_loan"]}')
+        else:
+            net_financing_current_terms.append(metric_term('socf_related_party_loan', 'current'))
+            net_financing_prior_terms.append(metric_term('socf_related_party_loan', 'prior'))
+        set_formula(
+            'net_financing',
+            'B',
+            '=' + '+'.join(net_financing_current_terms),
+        )
+        set_formula(
+            'net_financing',
+            'C',
+            '=' + '+'.join(net_financing_prior_terms),
+        )
+        set_formula(
+            'net_increase',
+            'B',
+            f'=B{rows["net_financing"]}+B{rows["net_investing"]}+B{rows["net_operations"]}',
+        )
+        set_formula(
+            'net_increase',
+            'C',
+            f'=C{rows["net_financing"]}+C{rows["net_investing"]}+C{rows["net_operations"]}',
+        )
+        set_formula('cash_beginning', 'B', f'=C{rows["cash_end"]}')
+        set_formula('cash_beginning', 'C', socf_formula('socf_cash_equivalent_opening', 'prior'))
+        set_formula('cash_end', 'B', f'=SUM(B{rows["net_increase"]}:B{rows["cash_beginning"]})')
+        set_formula('cash_end', 'C', f'=SUM(C{rows["net_increase"]}:C{rows["cash_beginning"]})')
 
     def _get_report_or_raise(self, xmlid):
         report = self.env.ref(xmlid, raise_if_not_found=False)
@@ -2358,8 +3663,6 @@ class AuditExcelExportWizard(models.TransientModel):
             'all_entries': self.include_draft_entries,
             'unfold_all': self.unfold_all,
             'hide_0_lines': self.hide_zero_lines,
-            'partner_ids': self.partner_ids.ids,
-            'analytic_accounts': self.analytic_account_ids.ids,
         }
         if aged:
             previous_options.update({
@@ -2370,12 +3673,6 @@ class AuditExcelExportWizard(models.TransientModel):
             })
 
         options = report.get_options(previous_options=previous_options)
-
-        if self.journal_ids and options.get('journals'):
-            selected_journal_ids = set(self.journal_ids.ids)
-            for journal_opt in options['journals']:
-                if journal_opt.get('model') == 'account.journal':
-                    journal_opt['selected'] = journal_opt.get('id') in selected_journal_ids
 
         if overrides:
             options = self._deep_merge_dict(options, overrides)
@@ -2473,6 +3770,9 @@ class AuditExcelExportWizard(models.TransientModel):
         )
         moves = self._get_invoice_bill_moves(report=report, options=options)
 
+        if is_customer:
+            return self._prepare_customer_invoice_flat_payload(title=title, moves=moves)
+
         summary_headers = [
             _('Invoice No'),
             _('Invoice Date'),
@@ -2540,6 +3840,114 @@ class AuditExcelExportWizard(models.TransientModel):
             'blocks': blocks,
         }
 
+    def _prepare_customer_invoice_flat_payload(self, *, title, moves):
+        headers = [
+            _('Invoice/Bill Date'),
+            _('Number'),
+            _('Invoice Partner Display Name'),
+            _('Invoice lines/Label'),
+            _('Currency'),
+            _('Currency/Inverse Rate'),
+            _('Invoice lines/Quantity'),
+            _('Invoice lines/Unit Price'),
+            _('Invoice lines/Subtotal'),
+            _('Amount paid'),
+            _('Payments/Date'),
+            _('Amount Due'),
+            _('Amount Due Signed'),
+            _('Total'),
+            _('Total Signed'),
+        ]
+        column_types = {
+            0: 'date',
+            5: 'number',
+            6: 'number',
+            7: 'number',
+            8: 'number',
+            9: 'number',
+            11: 'number',
+            12: 'number',
+            13: 'number',
+            14: 'number',
+        }
+
+        rows = []
+        for move in moves:
+            move_name = move.name or move.payment_reference or move.ref or '/'
+            move_currency = move.currency_id or move.company_currency_id
+            currency_label = move_currency.display_name if move_currency else ''
+            inverse_rate = self._compute_move_inverse_rate(move)
+            payment_dates = ', '.join(self._get_move_payment_dates(move))
+            amount_paid = float(move.amount_total or 0.0) - float(move.amount_residual or 0.0)
+
+            invoice_lines = move.invoice_line_ids.sorted(lambda line: (line.sequence, line.id))
+            if not invoice_lines:
+                invoice_lines = self.env['account.move.line']
+
+            rows.append({
+                'row_kind': 'invoice',
+                'values': [
+                    move.invoice_date,
+                    move_name,
+                    move.partner_id.display_name or '',
+                    _('Invoice'),
+                    currency_label,
+                    inverse_rate,
+                    None,
+                    None,
+                    None,
+                    amount_paid,
+                    payment_dates,
+                    move.amount_residual,
+                    move.amount_residual_signed,
+                    move.amount_total,
+                    move.amount_total_signed,
+                ],
+            })
+
+            for line_index, move_line in enumerate(invoice_lines or [False], start=1):
+                line_is_amount_line = (
+                    move_line.display_type not in {'line_section', 'line_subsection', 'line_note'}
+                    if move_line else False
+                )
+                line_label = (move_line.name or move_line.product_id.display_name or '') if move_line else ''
+                rows.append({
+                    'row_kind': 'line',
+                    'label_indent': 1,
+                    'values': [
+                        None,
+                        None,
+                        None,
+                        f"{line_index}. {line_label}".strip(),
+                        None,
+                        None,
+                        move_line.quantity if move_line and line_is_amount_line else None,
+                        move_line.price_unit if move_line and line_is_amount_line else None,
+                        move_line.price_subtotal if move_line and line_is_amount_line else None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                })
+
+        return {
+            'sheet_mode': 'invoice_bill_flat',
+            'sheet_name': title,
+            'title': title,
+            'headers': headers,
+            'rows': rows,
+            'column_types': column_types,
+        }
+
+    def _prepare_empty_sheet_payload(self, sheet_name):
+        return {
+            'sheet_mode': 'empty',
+            'sheet_name': sheet_name,
+        }
+
     def _get_invoice_bill_moves(self, *, report, options):
         handler = self.env['audit.invoice.bill.report.handler']
         return handler._query_moves(report, options)
@@ -2562,20 +3970,51 @@ class AuditExcelExportWizard(models.TransientModel):
             return abs(total_company / total_currency)
         return None
 
+    def _compute_move_inverse_rate(self, move):
+        move_currency = move.currency_id
+        company_currency = move.company_currency_id
+        if not move_currency or not company_currency:
+            return None
+        if move_currency == company_currency:
+            return 1.0
+
+        total_currency = float(move.amount_total or 0.0)
+        total_company = abs(float(move.amount_total_signed or 0.0))
+        if total_currency:
+            return total_company / total_currency
+
+        currency_rate = getattr(move, 'currency_rate', 0.0) or 0.0
+        if currency_rate:
+            return 1.0 / float(currency_rate)
+        return None
+
+    def _get_move_payment_dates(self, move):
+        move.invalidate_recordset(['invoice_payments_widget'])
+        widget = move.invoice_payments_widget or {}
+        if not isinstance(widget, dict):
+            return []
+
+        payment_dates = []
+        for payment_line in widget.get('content') or []:
+            raw_date = payment_line.get('date')
+            if not raw_date:
+                continue
+            try:
+                normalized = fields.Date.to_string(fields.Date.to_date(raw_date))
+            except Exception:
+                normalized = str(raw_date)
+            if normalized not in payment_dates:
+                payment_dates.append(normalized)
+        return payment_dates
+
     def _build_sheet_metadata(self, sheet_label, options=None):
-        journals = ', '.join(self.journal_ids.mapped('display_name')) if self.journal_ids else 'All'
-        partners = ', '.join(self.partner_ids.mapped('display_name')) if self.partner_ids else 'All'
-        analytics = ', '.join(self.analytic_account_ids.mapped('name')) if self.analytic_account_ids else 'All'
         year_end_date = self._get_effective_year_end_date()
 
         metadata = [
             ('Report', sheet_label),
             ('Companies', ', '.join(self.company_ids.mapped('name'))),
             ('Date Range', f"{fields.Date.to_string(self.date_from)} to {fields.Date.to_string(year_end_date)}"),
-            ('Aged As Of Date', fields.Date.to_string(year_end_date)),
-            ('Journals', journals),
-            ('Partners', partners),
-            ('Analytic Accounts', analytics),
+            ('Year End Date', fields.Date.to_string(year_end_date)),
             ('Include Draft Entries', 'Yes' if self.include_draft_entries else 'No'),
             ('Unfold All', 'Yes' if self.unfold_all else 'No'),
             ('Hide Zero Lines', 'Yes' if self.hide_zero_lines else 'No'),
@@ -2736,6 +4175,116 @@ class AuditExcelExportWizard(models.TransientModel):
             base_width = default_col_widths.get(col_idx, 12)
             width = max(base_width, col_widths.get(col_idx, 0) + 2)
             sheet.column_dimensions[get_column_letter(col_idx)].width = min(width, 56)
+
+    def _write_invoice_bill_flat_sheet(
+        self,
+        workbook,
+        used_sheet_names,
+        *,
+        insert_index,
+        sheet_name,
+        title,
+        headers,
+        rows,
+        column_types=None,
+    ):
+        sheet = workbook.create_sheet(title=self._get_unique_sheet_name(sheet_name, used_sheet_names), index=insert_index)
+
+        total_columns = len(headers) or 1
+        label_col_idx = 4
+        row = 1
+        col_widths = {}
+        column_types = column_types or {}
+        default_col_widths = {
+            1: 16,
+            2: 18,
+            3: 26,
+            4: 36,
+            5: 12,
+            6: 14,
+            7: 12,
+            8: 13,
+            9: 14,
+            10: 13,
+            11: 14,
+            12: 13,
+            13: 13,
+            14: 13,
+            15: 13,
+        }
+
+        def track_width(col_idx, value):
+            text = '' if value is None else str(value)
+            col_widths[col_idx] = max(col_widths.get(col_idx, 0), len(text))
+
+        header_row = row
+        for col_idx, header in enumerate(headers, start=1):
+            header_cell = sheet.cell(row=row, column=col_idx, value=header)
+            header_cell.font = Font(name='Calibri', size=11, bold=True)
+            header_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            track_width(col_idx, header)
+        row += 1
+
+        if not rows:
+            no_data_cell = sheet.cell(row=row, column=1, value=_('No data'))
+            no_data_cell.font = Font(name='Calibri', size=11)
+            no_data_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+            track_width(1, _('No data'))
+        else:
+            for row_data in rows:
+                if isinstance(row_data, dict):
+                    line_values = row_data.get('values') or []
+                    row_kind = row_data.get('row_kind')
+                    label_indent = int(row_data.get('label_indent') or 0)
+                else:
+                    line_values = row_data
+                    row_kind = False
+                    label_indent = 0
+                for col_idx, cell_value in enumerate(line_values, start=1):
+                    data_cell = sheet.cell(row=row, column=col_idx)
+                    col_type = column_types.get(col_idx - 1)
+
+                    if col_type == 'date':
+                        if isinstance(cell_value, datetime.datetime):
+                            data_cell.value = cell_value
+                            data_cell.number_format = 'yyyy-mm-dd'
+                            data_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                        elif isinstance(cell_value, datetime.date):
+                            data_cell.value = datetime.datetime.combine(cell_value, datetime.time.min)
+                            data_cell.number_format = 'yyyy-mm-dd'
+                            data_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                        else:
+                            data_cell.value = cell_value or ''
+                            data_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                    elif col_type == 'number' and isinstance(cell_value, (int, float)):
+                        data_cell.value = float(cell_value)
+                        data_cell.number_format = '#,##0.00'
+                        data_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+                    else:
+                        data_cell.value = cell_value or ''
+                        data_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+
+                    if row_kind == 'invoice':
+                        data_cell.font = Font(name='Calibri', size=11, bold=True)
+                    elif label_indent and col_idx == label_col_idx:
+                        data_cell.font = Font(name='Calibri', size=11)
+                        data_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=True, indent=label_indent)
+                    else:
+                        data_cell.font = Font(name='Calibri', size=11)
+
+                    track_width(col_idx, cell_value)
+                row += 1
+
+        for col_idx in range(1, total_columns + 1):
+            base_width = default_col_widths.get(col_idx, 12)
+            width = max(base_width, col_widths.get(col_idx, 0) + 2)
+            sheet.column_dimensions[get_column_letter(col_idx)].width = min(width, 56)
+
+    def _write_empty_sheet(self, workbook, used_sheet_names, *, insert_index, sheet_name):
+        workbook.create_sheet(
+            title=self._get_unique_sheet_name(sheet_name, used_sheet_names),
+            index=insert_index,
+        )
 
     def _write_plain_sheet(self, workbook, used_sheet_names, *, insert_index, sheet_name, title, metadata, sections):
         styles = self._get_plain_styles()
@@ -3111,7 +4660,7 @@ class AuditExcelExportWizard(models.TransientModel):
             (12, 'Total Liabilities', '=SOFP!B30'),
             (13, 'Total Equity', '=SOFP!B24'),
             (15, 'Related Party Revenue', '=SOCI!B9'),
-            (16, 'Related Party Loan', '=SOFP!B23'),
+            (16, 'Related Party Loan', '=SOFP!B26'),
             (17, 'Interest Income', '=SOCI!B29'),
             (18, 'Dividend Income', '=0'),
         ]
@@ -3151,7 +4700,7 @@ class AuditExcelExportWizard(models.TransientModel):
             (23, 'Owner current account'),
             (24, 'Total Equity'),
             (25, 'Non-current liabilities'),
-            (26, 'Long-term loans'),
+            (26, 'Loan from related party'),
             (27, 'Current liabilities'),
             (28, 'Audit and accounting accrual'),
             (29, 'VAT payable'),
@@ -3235,7 +4784,7 @@ class AuditExcelExportWizard(models.TransientModel):
         self._apply_template_header_row(
             sheet,
             6,
-            ['', 'Share capital', "Owner's current account", 'Retained earnings', 'Total'],
+            ['', 'Share capital', "Owner's current account", 'Retained earnings', 'Statutory reserves', 'Total'],
         )
         entries = [
             (7, 'Balance as at start of period'),
@@ -3255,11 +4804,11 @@ class AuditExcelExportWizard(models.TransientModel):
         styles = self._get_template_sheet_styles()
         for row, label in entries:
             sheet.cell(row=row, column=1, value=label).border = styles['border']
-            for col in range(2, 6):
+            for col in range(2, 7):
                 sheet.cell(row=row, column=col).border = styles['border']
         for row in (7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18):
-            sheet.cell(row=row, column=5, value=f'=SUM(B{row}:D{row})')
-        for col in ('B', 'C', 'D', 'E'):
+            sheet.cell(row=row, column=6, value=f'=SUM(B{row}:E{row})')
+        for col in ('B', 'C', 'D', 'E', 'F'):
             sheet[f'{col}13'] = f'=SUM({col}7:{col}12)'
             sheet[f'{col}19'] = f'=SUM({col}13:{col}18)'
 
@@ -3280,25 +4829,27 @@ class AuditExcelExportWizard(models.TransientModel):
             (14, 'Net cash generated from operations'),
             (15, 'Cash flows from investing activities'),
             (16, 'Property, plant and equipment'),
-            (17, 'Net cash generated from investing activities'),
-            (18, 'Cash flows from financing activities'),
-            (19, 'Paid up capital'),
-            (20, 'Dividend paid'),
-            (21, 'Owner current account'),
-            (22, 'Net cash generated from financing activities'),
-            (23, 'Net increase in cash and cash equivalents'),
-            (24, 'Cash and cash equivalents, beginning of the period'),
-            (25, 'Cash and cash equivalents, end of the period'),
+            (17, 'Security deposit'),
+            (18, 'Net cash generated from investing activities'),
+            (19, 'Cash flows from financing activities'),
+            (20, 'Paid up capital'),
+            (21, 'Dividend paid'),
+            (22, 'Owner current account'),
+            (23, 'Loan from related party'),
+            (24, 'Net cash generated from financing activities'),
+            (25, 'Net increase in cash and cash equivalents'),
+            (26, 'Cash and cash equivalents, beginning of the period'),
+            (27, 'Cash and cash equivalents, end of the period'),
         ]
         formulas = {
             'B9': '=SOCI!B31', 'C9': '=SOCI!C31',
             'B10': '=B9', 'C10': '=C9',
             'B14': '=SUM(B10:B13)', 'C14': '=SUM(C10:C13)',
-            'B17': '=SUM(B15:B16)', 'C17': '=SUM(C15:C16)',
-            'B22': '=SUM(B18:B21)', 'C22': '=SUM(C18:C21)',
-            'B23': '=B22+B17+B14', 'C23': '=C22+C17+C14',
-            'B24': '=C25',
-            'B25': '=SUM(B23:B24)', 'C25': '=SUM(C23:C24)',
+            'B18': '=SUM(B16:B17)', 'C18': '=SUM(C16:C17)',
+            'B24': '=SUM(B20:B23)', 'C24': '=SUM(C20:C23)',
+            'B25': '=B24+B18+B14', 'C25': '=C24+C18+C14',
+            'B26': '=C27',
+            'B27': '=SUM(B25:B26)', 'C27': '=SUM(C25:C26)',
         }
         styles = self._get_template_sheet_styles()
         for row, label in entries:
@@ -3519,7 +5070,7 @@ class AuditExcelExportWizard(models.TransientModel):
             'prior_balance_sheet_date_mode': self.prior_balance_sheet_date_mode or 'end_only',
             'prior_date_start': periods.get('prior_date_start') if periods.get('show_prior_year') else False,
             'prior_date_end': periods.get('prior_date_end') if periods.get('show_prior_year') else False,
-            'audit_period_category': self.audit_period_category or 'normal_2y',
+            'audit_period_category': 'normal_2y' if periods.get('show_prior_year') else 'normal_1y',
             'soce_prior_opening_label_date': (
                 periods.get('prior_date_start')
                 or periods.get('prior_opening_date_end')
@@ -3530,13 +5081,17 @@ class AuditExcelExportWizard(models.TransientModel):
         ar_wizard = self.env['audit.report'].create(ar_vals)
         rd = ar_wizard._get_report_data()
 
-        # Period-level prefix totals for SOCI expense breakdown.
-        period_rows = ar_wizard._fetch_grouped_account_rows(
+        # Period-level prefix totals for SOCI expense breakdown now come from
+        # the local native Odoo Trial Balance loader, matching audit.report's
+        # amount basis without depending on its helper methods.
+        period_rows = self._tb_fetch_movement_rows(
+            company,
             periods['date_start'], periods['date_end'],
         )
         prior_period_rows = []
         if periods.get('show_prior_year'):
-            prior_period_rows = ar_wizard._fetch_grouped_account_rows(
+            prior_period_rows = self._tb_fetch_movement_rows(
+                company,
                 periods.get('prior_date_start'), periods.get('prior_date_end'),
             )
 
@@ -3638,6 +5193,36 @@ class AuditExcelExportWizard(models.TransientModel):
             sheet[f'B{row_idx}'] = None
             sheet[f'C{row_idx}'] = None
 
+    def _write_dynamic_formula_rows(self, sheet, row_indexes, lines, show_prior, number_format='#,##0.00'):
+        """Write dynamic lines whose amounts are Excel formulas instead of static values."""
+        for idx, row_idx in enumerate(row_indexes):
+            if idx < len(lines):
+                line = lines[idx]
+                sheet.row_dimensions[row_idx].hidden = False
+                sheet.cell(row=row_idx, column=1, value=line.get('label'))
+
+                current_formula = line.get('current_formula')
+                if current_formula is None:
+                    sheet[f'B{row_idx}'] = None
+                else:
+                    sheet[f'B{row_idx}'] = current_formula
+                    sheet[f'B{row_idx}'].number_format = number_format
+
+                if show_prior:
+                    prior_formula = line.get('prior_formula')
+                    if prior_formula is None:
+                        sheet[f'C{row_idx}'] = None
+                    else:
+                        sheet[f'C{row_idx}'] = prior_formula
+                        sheet[f'C{row_idx}'].number_format = number_format
+                else:
+                    sheet[f'C{row_idx}'] = None
+                continue
+
+            sheet.row_dimensions[row_idx].hidden = True
+            sheet[f'B{row_idx}'] = None
+            sheet[f'C{row_idx}'] = None
+
     def _ar_ensure_rows_between(self, sheet, start_row, end_row, required_count, *, max_col=5):
         """Ensure there are at least *required_count* rows between two anchors."""
         if not sheet or not start_row or not end_row or end_row <= start_row:
@@ -3677,109 +5262,225 @@ class AuditExcelExportWizard(models.TransientModel):
             return lines
         return []
 
+    def _ar_fetch_closing_account_rows(self, company, date_end):
+        """Return account-level closing balances as of *date_end*."""
+        if not company or not date_end:
+            return []
+        try:
+            rows = self._tb_fetch_rows_from_odoo_trial_balance(company, False, date_end)
+            if rows is None:
+                rows = self._tb_fetch_grouped_move_line_rows(company, False, date_end)
+        except Exception as err:
+            _logger.exception(
+                "Falling back to grouped move-line closing rows for SOFP in %s id=%s due to: %s",
+                getattr(self, '_name', self.__class__.__name__),
+                getattr(self, 'id', False),
+                err,
+            )
+            rows = self._tb_fetch_grouped_move_line_rows(company, False, date_end)
+        return self._tb_project_account_rows(rows, balance_role='closing')
+
+    @staticmethod
+    def _ar_sofp_account_section(code):
+        normalized_code = (code or '').strip()
+        if not normalized_code:
+            return False
+        if normalized_code == '12040101':
+            return 'equity'
+        if normalized_code.startswith('11'):
+            return 'non_current_assets'
+        if normalized_code.startswith('1204') or normalized_code.startswith('1206'):
+            return 'cash_bank'
+        if normalized_code.startswith('1'):
+            return 'current_assets'
+        if normalized_code.startswith('21'):
+            return 'non_current_liabilities'
+        if normalized_code.startswith('22'):
+            return 'current_liabilities'
+        if normalized_code.startswith('3'):
+            return 'equity'
+        return False
+
+    @staticmethod
+    def _ar_format_sofp_account_label(row):
+        code = (row.get('code_raw') or row.get('code') or '').strip()
+        name = (row.get('name') or '').strip()
+        return name or code or 'Account'
+
+    def _ar_build_sofp_account_lines(self, show_prior):
+        company = self._get_primary_company_for_template()
+        periods = self._get_reporting_periods()
+        current_rows = self._ar_fetch_closing_account_rows(company, periods.get('date_end'))
+        prior_rows = []
+        if show_prior:
+            prior_rows = self._ar_fetch_closing_account_rows(company, periods.get('prior_date_end'))
+
+        current_map = {
+            (row.get('code') or ''): row
+            for row in (current_rows or [])
+            if row.get('code')
+        }
+        prior_map = {
+            (row.get('code') or ''): row
+            for row in (prior_rows or [])
+            if row.get('code')
+        }
+        all_codes = sorted(set(current_map) | set(prior_map))
+
+        lines_by_section = {
+            'non_current_assets': [],
+            'current_assets': [],
+            'equity': [],
+            'non_current_liabilities': [],
+            'current_liabilities': [],
+        }
+        cash_bank_current = 0.0
+        cash_bank_prior = 0.0
+
+        for code in all_codes:
+            current_row = current_map.get(code) or {}
+            prior_row = prior_map.get(code) or {}
+            current_value = self._tb_to_float(current_row.get('end_balance'))
+            prior_value = self._tb_to_float(prior_row.get('end_balance'))
+
+            section = self._ar_sofp_account_section(code)
+            if not section:
+                continue
+            if section == 'cash_bank':
+                cash_bank_current += current_value
+                cash_bank_prior += prior_value
+                continue
+
+            if section in ('equity', 'non_current_liabilities', 'current_liabilities'):
+                current_value = -current_value
+                prior_value = -prior_value
+
+            if not (current_value or (show_prior and prior_value)):
+                continue
+
+            lines_by_section[section].append({
+                'label': self._ar_format_sofp_account_label(current_row or prior_row),
+                'current': current_value,
+                'prev': prior_value,
+            })
+
+        if cash_bank_current or (show_prior and cash_bank_prior):
+            lines_by_section['current_assets'].append({
+                'label': 'Cash and bank balances',
+                'current': cash_bank_current,
+                'prev': cash_bank_prior,
+            })
+
+        return lines_by_section
+
     # -- SOFP population ---------------------------------------------------
 
     def _ar_populate_sofp(self, sheet, rd):
-        cgt = rd.get('current_group_totals', {})
-        pgt = rd.get('prev_group_totals', {})
-        main_head_labels = rd.get('main_head_labels', {})
         show_prior = bool(rd.get('show_prior_year'))
         fmt = '#,##0.00'
 
-        # Find rows by label (in case earlier stages inserted rows).
-        def row(label, **kw):
-            return self._find_row_by_label(sheet, label, **kw) or self._find_row_by_keys(sheet, [label])
-
         def include_line(current, prev=0.0):
             return bool(current) or (show_prior and bool(prev))
+        sofp_lines = self._ar_build_sofp_account_lines(show_prior)
+        non_current_asset_lines = sofp_lines.get('non_current_assets', [])
+        current_asset_lines = sofp_lines.get('current_assets', [])
+        equity_lines = sofp_lines.get('equity', [])
+        non_current_liability_lines = sofp_lines.get('non_current_liabilities', [])
+        current_liability_lines = sofp_lines.get('current_liabilities', [])
 
-        non_current_codes = ('1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108', '1109')
-        current_codes = ('1201', '1202', '1203', '1204', '1206')
-        non_current_liability_codes = ('2101', '2102', '2103', '2104')
-        current_liability_codes = ('2201', '2202', '2203', '2204')
+        # Fallback to grouped totals if account-level extraction yielded no lines.
+        if not (
+            non_current_asset_lines
+            or current_asset_lines
+            or equity_lines
+            or non_current_liability_lines
+            or current_liability_lines
+        ):
+            cgt = rd.get('current_group_totals', {})
+            pgt = rd.get('prev_group_totals', {})
+            main_head_labels = rd.get('main_head_labels', {})
+            non_current_codes = ('1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108', '1109')
+            current_codes = ('1201', '1202', '1203', '1204', '1206')
+            non_current_liability_codes = ('2101', '2102', '2103', '2104')
+            current_liability_codes = ('2201', '2202', '2203', '2204')
 
-        non_current_asset_lines = []
-        for code in non_current_codes:
-            current = cgt.get(code, 0.0)
-            prev = pgt.get(code, 0.0)
-            if include_line(current, prev):
-                non_current_asset_lines.append({
-                    'label': main_head_labels.get(code, code),
-                    'current': current,
-                    'prev': prev,
+            for code in non_current_codes:
+                current = cgt.get(code, 0.0)
+                prev = pgt.get(code, 0.0)
+                if include_line(current, prev):
+                    non_current_asset_lines.append({
+                        'label': main_head_labels.get(code, code),
+                        'current': current,
+                        'prev': prev,
+                    })
+
+            for code in current_codes:
+                current = cgt.get(code, 0.0)
+                prev = pgt.get(code, 0.0)
+                if code == '1203':
+                    current += cgt.get('1205', 0.0)
+                    prev += pgt.get('1205', 0.0)
+                if include_line(current, prev):
+                    current_asset_lines.append({
+                        'label': main_head_labels.get(code, code),
+                        'current': current,
+                        'prev': prev,
+                    })
+
+            share_capital_current = rd.get('share_capital_total', 0.0) or 0.0
+            share_capital_prev = rd.get('prev_share_capital_total', 0.0) or 0.0
+            if rd.get('show_shareholder_note'):
+                equity_lines.append({
+                    'label': 'Share capital',
+                    'current': share_capital_current,
+                    'prev': share_capital_prev,
                 })
 
-        current_asset_lines = []
-        for code in current_codes:
-            current = cgt.get(code, 0.0)
-            prev = pgt.get(code, 0.0)
-            if code == '1203':
-                current += cgt.get('1205', 0.0)
-                prev += pgt.get('1205', 0.0)
-            if include_line(current, prev):
-                current_asset_lines.append({
-                    'label': main_head_labels.get(code, code),
-                    'current': current,
-                    'prev': prev,
+            retained_current = rd.get('retained_earnings_balance', 0.0) or 0.0
+            retained_prev = rd.get('prev_retained_earnings_balance', 0.0) or 0.0
+            if include_line(retained_current, retained_prev):
+                equity_lines.append({
+                    'label': 'Retained earnings',
+                    'current': retained_current,
+                    'prev': retained_prev,
                 })
 
-        equity_lines = []
-        share_capital_current = rd.get('share_capital_total', 0.0) or 0.0
-        share_capital_prev = rd.get('prev_share_capital_total', 0.0) or 0.0
-        if rd.get('show_shareholder_note'):
-            equity_lines.append({
-                'label': 'Share capital',
-                'current': share_capital_current,
-                'prev': share_capital_prev,
-            })
-
-        retained_current = rd.get('retained_earnings_balance', 0.0) or 0.0
-        retained_prev = rd.get('prev_retained_earnings_balance', 0.0) or 0.0
-        if include_line(retained_current, retained_prev):
-            equity_lines.append({
-                'label': 'Retained earnings',
-                'current': retained_current,
-                'prev': retained_prev,
-            })
-
-        owner_current = rd.get('owner_current_account_equity', 0.0) or 0.0
-        owner_prev = rd.get('prev_owner_current_account_equity', 0.0) or 0.0
-        if rd.get('show_owner_current_account_equity_row'):
-            equity_lines.append({
-                'label': 'Owner current account',
-                'current': owner_current,
-                'prev': owner_prev,
-            })
-
-        statutory_current = rd.get('statutory_reserves_equity', 0.0) or 0.0
-        statutory_prev = rd.get('prev_statutory_reserves_equity', 0.0) or 0.0
-        if include_line(statutory_current, statutory_prev):
-            equity_lines.append({
-                'label': 'Statutory reserves',
-                'current': statutory_current,
-                'prev': statutory_prev,
-            })
-
-        non_current_liability_lines = []
-        for code in non_current_liability_codes:
-            current = -(cgt.get(code, 0.0))
-            prev = -(pgt.get(code, 0.0))
-            if include_line(current, prev):
-                non_current_liability_lines.append({
-                    'label': main_head_labels.get(code, code),
-                    'current': current,
-                    'prev': prev,
+            owner_current = rd.get('owner_current_account_equity', 0.0) or 0.0
+            owner_prev = rd.get('prev_owner_current_account_equity', 0.0) or 0.0
+            if rd.get('show_owner_current_account_equity_row'):
+                equity_lines.append({
+                    'label': 'Owner current account',
+                    'current': owner_current,
+                    'prev': owner_prev,
                 })
 
-        other_payables_current = -sum(cgt.get(code, 0.0) for code in current_liability_codes)
-        other_payables_prev = -sum(pgt.get(code, 0.0) for code in current_liability_codes)
-        current_liability_lines = []
-        if include_line(other_payables_current, other_payables_prev):
-            current_liability_lines.append({
-                'label': 'Other payables',
-                'current': other_payables_current,
-                'prev': other_payables_prev,
-            })
+            statutory_current = rd.get('statutory_reserves_equity', 0.0) or 0.0
+            statutory_prev = rd.get('prev_statutory_reserves_equity', 0.0) or 0.0
+            if include_line(statutory_current, statutory_prev):
+                equity_lines.append({
+                    'label': 'Statutory reserves',
+                    'current': statutory_current,
+                    'prev': statutory_prev,
+                })
+
+            for code in non_current_liability_codes:
+                current = -(cgt.get(code, 0.0))
+                prev = -(pgt.get(code, 0.0))
+                if include_line(current, prev):
+                    non_current_liability_lines.append({
+                        'label': main_head_labels.get(code, code),
+                        'current': current,
+                        'prev': prev,
+                    })
+
+            other_payables_current = -sum(cgt.get(code, 0.0) for code in current_liability_codes)
+            other_payables_prev = -sum(pgt.get(code, 0.0) for code in current_liability_codes)
+            if include_line(other_payables_current, other_payables_prev):
+                current_liability_lines.append({
+                    'label': 'Other payables',
+                    'current': other_payables_current,
+                    'prev': other_payables_prev,
+                })
 
         non_current_asset_rows = self._ar_ensure_detail_rows(
             sheet, 'Non-current assets', ['Total non-current assets'], len(non_current_asset_lines)
@@ -3806,19 +5507,16 @@ class AuditExcelExportWizard(models.TransientModel):
         )
         self._ar_write_dynamic_rows(sheet, current_liability_rows, current_liability_lines, show_prior, fmt)
 
-        r_te = row('Total Equity') or row('Total equity')
-        if r_te:
-            self._ar_set_value(sheet, f'B{r_te}', rd.get('equity_total_display', 0.0), fmt)
-            self._ar_set_value(sheet, f'C{r_te}', rd.get('prev_equity_total_display', 0.0), fmt)
-
         # Totals – keep/restore template SUM formulas so the sheet is self-consistent.
         r_tnca = self._find_row_by_label(sheet, 'Total non-current assets')
         r_tca = self._find_row_by_label(sheet, 'Total current assets')
         r_ta = self._find_row_by_label(sheet, 'Total assets')
+        r_te = self._find_row_by_keys(sheet, ['Total Equity', 'Total equity'])
         r_tl = self._find_row_by_label(sheet, 'Total Liabilities')
         r_tel = self._find_row_by_label(sheet, 'Total Equity and Liabilities')
         r_nca_hdr = self._find_row_by_label(sheet, 'Non-current assets')
         r_ca_hdr = self._find_row_by_label(sheet, 'Current assets')
+        r_eq_hdr = self._find_row_by_label(sheet, 'Equity')
         r_ncl_hdr = self._find_row_by_label(sheet, 'Non-current liabilities')
 
         if r_tnca and r_nca_hdr:
@@ -3830,6 +5528,9 @@ class AuditExcelExportWizard(models.TransientModel):
         if r_ta and r_tnca and r_tca:
             sheet[f'B{r_ta}'] = f'=B{r_tca}+B{r_tnca}'
             sheet[f'C{r_ta}'] = f'=C{r_tca}+C{r_tnca}'
+        if r_te and r_eq_hdr:
+            sheet[f'B{r_te}'] = f'=SUM(B{r_eq_hdr}:B{r_te - 1})'
+            sheet[f'C{r_te}'] = f'=SUM(C{r_eq_hdr}:C{r_te - 1})'
         if r_tl and r_ncl_hdr:
             sheet[f'B{r_tl}'] = f'=SUM(B{r_ncl_hdr}:B{r_tl - 1})'
             sheet[f'C{r_tl}'] = f'=SUM(C{r_ncl_hdr}:C{r_tl - 1})'
@@ -3970,9 +5671,9 @@ class AuditExcelExportWizard(models.TransientModel):
         self._ar_set_value(sheet, f'B{r_inv}', -(pt.get('5201', 0.0)), fmt)
         self._ar_set_value(sheet, f'C{r_inv}', -(ppt.get('5201', 0.0)), fmt)
 
-        # Other income (4103 negated for positive display)
-        self._ar_set_value(sheet, f'B{r_oi}', -(pt.get('4103', 0.0)), fmt)
-        self._ar_set_value(sheet, f'C{r_oi}', -(ppt.get('4103', 0.0)), fmt)
+        # Other income (4103) is always shown as a positive display amount.
+        self._ar_set_value(sheet, f'B{r_oi}', abs(pt.get('4103', 0.0)), fmt)
+        self._ar_set_value(sheet, f'C{r_oi}', abs(ppt.get('4103', 0.0)), fmt)
 
         # Net profit formula
         sheet[f'B{r_np}'] = f'=B{r_gp}-B{r_top}+B{r_inv}+B{r_oi}'
@@ -4108,6 +5809,12 @@ class AuditExcelExportWizard(models.TransientModel):
         owner_ca_cur = rd.get('owner_current_account', 0.0)
         owner_ca_prior = rd.get('prior_owner_current_account', 0.0)
         show_owner_ca_row = bool(rd.get('show_owner_current_account_cashflow_row'))
+        related_party_loan_cur = rd.get('related_party_loan', 0.0)
+        related_party_loan_prior = rd.get('prior_related_party_loan', 0.0)
+        show_related_party_loan_row = bool(rd.get('show_related_party_loan_cashflow_row'))
+        security_deposit_cur = rd.get('security_deposit', 0.0)
+        security_deposit_prior = rd.get('prior_security_deposit', 0.0)
+        show_security_deposit_row = bool(rd.get('show_security_deposit_cashflow_row'))
         net_financing_cur = rd.get('net_cash_generated_from_financing_activities', 0.0)
         net_financing_prior = rd.get('prior_net_cash_generated_from_financing_activities', 0.0)
         net_cash_change_cur = rd.get('net_cash_and_cash_equivalents', 0.0)
@@ -4175,31 +5882,15 @@ class AuditExcelExportWizard(models.TransientModel):
         # Resolve all remaining anchors after insertions.
         r_ncfo = row(keys=['Net cash generated from operations', 'Net cash (used in) operations']) or 14
         r_invest_hdr = row(label='Cash flows from investing activities', keys=['Cash flows from investing activities']) or 15
-        r_ppe_inv = row(label='Property, plant and equipment', start_row=r_invest_hdr) or 16
         r_ncfi = row(
             keys=['Net cash generated from investing activities', 'Net cash (used in) investing activities'],
             start_row=r_invest_hdr,
-        ) or 17
-        r_fin_hdr = row(label='Cash flows from financing activities', keys=['Cash flows from financing activities']) or 18
-        r_puc = row(label='Paid up capital', start_row=r_fin_hdr) or 19
-        r_div = row(label='Dividend paid', start_row=r_fin_hdr) or 20
-        r_oca_cf = row(label='Owner current account', start_row=r_fin_hdr) or 21
+        ) or 18
+        r_fin_hdr = row(label='Cash flows from financing activities', keys=['Cash flows from financing activities']) or 19
         r_ncff = row(
             keys=['Net cash generated from financing activities', 'Net cash (used in) financing activities'],
             start_row=r_fin_hdr,
-        ) or 22
-        r_net = row(
-            keys=[
-                'Net increase in cash and cash equivalents',
-                'Net increase / (decrease) in cash and cash equivalents',
-            ]
-        ) or 23
-        r_beg = row(
-            keys=['Cash and cash equivalents, beginning of the period', 'Cash and cash equivalents at the beginning']
         ) or 24
-        r_end = row(
-            keys=['Cash and cash equivalents, end of the period', 'Cash and cash equivalents at the end']
-        ) or 25
 
         # Operating section values and labels.
         if show_prior:
@@ -4247,15 +5938,29 @@ class AuditExcelExportWizard(models.TransientModel):
         write_row(r_ncfo, label=net_ops_label, current=net_operations_cur, prior=net_operations_prior, visible=True)
 
         # Investing section print/hide.
-        show_investing = has_value(property_cur, property_prior) or has_value(net_investing_cur, net_investing_prior)
-        write_row(r_invest_hdr, label='Cash flows from investing activities', current=None, prior=None, visible=show_investing)
-        write_row(
-            r_ppe_inv,
-            label='Property, plant and equipment',
-            current=property_cur,
-            prior=property_prior,
-            visible=show_investing and has_value(property_cur, property_prior),
+        investing_lines = []
+        if has_value(property_cur, property_prior):
+            investing_lines.append({
+                'label': 'Property, plant and equipment',
+                'current': property_cur,
+                'prev': property_prior,
+            })
+        if show_security_deposit_row:
+            investing_lines.append({
+                'label': 'Security deposit',
+                'current': security_deposit_cur,
+                'prev': security_deposit_prior,
+            })
+        show_investing = bool(investing_lines) or has_value(net_investing_cur, net_investing_prior)
+        investing_rows = self._ar_ensure_rows_between(
+            sheet,
+            r_invest_hdr,
+            r_ncfi,
+            len(investing_lines),
+            max_col=3,
         )
+        self._ar_write_dynamic_rows(sheet, investing_rows, investing_lines, show_prior, fmt)
+        write_row(r_invest_hdr, label='Cash flows from investing activities', current=None, prior=None, visible=show_investing)
         investing_label = (
             'Net cash (used in) investing activities'
             if has_value((net_investing_cur or 0.0) < 0.0, (net_investing_prior or 0.0) < 0.0)
@@ -4269,35 +5974,66 @@ class AuditExcelExportWizard(models.TransientModel):
             visible=show_investing and has_value(net_investing_cur, net_investing_prior),
         )
 
+        financing_lines = []
+        if has_value(paid_up_capital_cur, paid_up_capital_prior):
+            financing_lines.append({
+                'label': 'Paid up capital',
+                'current': paid_up_capital_cur,
+                'prev': paid_up_capital_prior,
+            })
+        if has_value(dividend_paid_cur, dividend_paid_prior):
+            financing_lines.append({
+                'label': 'Dividend paid',
+                'current': dividend_paid_cur,
+                'prev': dividend_paid_prior,
+            })
+        if show_owner_ca_row:
+            financing_lines.append({
+                'label': 'Owner current account',
+                'current': owner_ca_cur,
+                'prev': owner_ca_prior,
+            })
+        if show_related_party_loan_row:
+            financing_lines.append({
+                'label': 'Loan from related party',
+                'current': related_party_loan_cur,
+                'prev': related_party_loan_prior,
+            })
+        financing_rows = self._ar_ensure_rows_between(
+            sheet,
+            r_fin_hdr,
+            r_ncff,
+            len(financing_lines),
+            max_col=3,
+        )
+        self._ar_write_dynamic_rows(sheet, financing_rows, financing_lines, show_prior, fmt)
+
+        r_ncff = row(
+            keys=['Net cash generated from financing activities', 'Net cash (used in) financing activities'],
+            start_row=r_fin_hdr,
+        ) or 24
+        r_net = row(
+            keys=[
+                'Net increase in cash and cash equivalents',
+                'Net increase / (decrease) in cash and cash equivalents',
+            ]
+        ) or 25
+        r_beg = row(
+            keys=['Cash and cash equivalents, beginning of the period', 'Cash and cash equivalents at the beginning']
+        ) or 26
+        r_end = row(
+            keys=['Cash and cash equivalents, end of the period', 'Cash and cash equivalents at the end']
+        ) or 27
+
         # Financing section print/hide.
         show_financing = (
             has_value(paid_up_capital_cur, paid_up_capital_prior)
             or has_value(dividend_paid_cur, dividend_paid_prior)
             or show_owner_ca_row
+            or show_related_party_loan_row
             or has_value(net_financing_cur, net_financing_prior)
         )
         write_row(r_fin_hdr, label='Cash flows from financing activities', current=None, prior=None, visible=show_financing)
-        write_row(
-            r_puc,
-            label='Paid up capital',
-            current=paid_up_capital_cur,
-            prior=paid_up_capital_prior,
-            visible=show_financing and has_value(paid_up_capital_cur, paid_up_capital_prior),
-        )
-        write_row(
-            r_div,
-            label='Dividend paid',
-            current=dividend_paid_cur,
-            prior=dividend_paid_prior,
-            visible=show_financing and has_value(dividend_paid_cur, dividend_paid_prior),
-        )
-        write_row(
-            r_oca_cf,
-            label='Owner current account',
-            current=owner_ca_cur,
-            prior=owner_ca_prior,
-            visible=show_financing and show_owner_ca_row,
-        )
         financing_label = (
             'Net cash (used in) financing activities'
             if has_value((net_financing_cur or 0.0) < 0.0, (net_financing_prior or 0.0) < 0.0)

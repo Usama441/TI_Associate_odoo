@@ -412,7 +412,7 @@
     <br>
     <br>
     <br>
-		<p>………………………………….………………………………….………………………</p>
+		<p>{% if is_default %}………………………………….………………………………….………………………{% else %}…………………………{% endif %}</p>
 		<p> {% if is_default %}Assurance Corp Audit and Accounting – Dubai Branch trading as Redbond &amp; Co Accountants<br/>Dubai, United Arab Emirates{% elif is_ifza %}Abdulla Saeed Hamad Aljneibi<br/>Reg. No. 820<br/>Assurance Corp Audit and Accounting – Dubai Branch <br/> Dubai, United Arab Emirates{% else %}Abdulla Saeed Hamad Aljneibi<br/>Reg. No. 820<br/>Assurance Corp Audit and Accounting<br/>United Arab Emirates{% endif %} </p>
 		<p>Date: {{ generated_date_display }}</p>
 	</div>
@@ -1868,7 +1868,6 @@
         of cumulative gains and losses upon derecognition (equity instruments)
       </li>
       <li>Financial assets at fair value through profit or loss</li>
-      <li>Financial assets at amortized cost (debt instruments)</li>
     </ul>
     
     <p>
@@ -2764,9 +2763,9 @@
 		      <tbody>
 		        {% for related_party_row in related_party_rows %}
 		        <tr>
-		          <td class="text-left">{{ related_party_row.get('name') or '-' }}</td>
-		          <td class="text-left">{{ related_party_row.get('relationship') or '-' }}</td>
-		          <td class="text-left">{{ related_party_row.get('transaction') or '-' }}</td>
+		          <td class="text-left">{{ (related_party_row.get('name') or '-')|rcase }}</td>
+		          <td class="text-left">{{ (related_party_row.get('relationship') or '-')|rcase }}</td>
+		          <td class="text-left">{{ (related_party_row.get('transaction') or '-')|rcase }}</td>
 		          <td class="rp-spacer"></td>
 		          <td class="text-right">{{ "%.0f"|format(related_party_row.get('amount') or 0.0) }}</td>
 		          <td class="text-right">{{ "%.0f"|format(related_party_row.get('amount_prior') or 0.0) }}</td>
@@ -2787,9 +2786,9 @@
 		      <tbody>
 		        {% for related_party_row in related_party_rows %}
 		        <tr>
-		          <td class="text-left">{{ related_party_row.get('name') or '-' }}</td>
-		          <td class="text-right">{{ related_party_row.get('relationship') or '-' }}</td>
-		          <td class="text-right">{{ related_party_row.get('transaction') or '-' }}</td>
+		          <td class="text-left">{{ (related_party_row.get('name') or '-')|rcase }}</td>
+		          <td class="text-right">{{ (related_party_row.get('relationship') or '-')|rcase }}</td>
+		          <td class="text-right">{{ (related_party_row.get('transaction') or '-')|rcase }}</td>
 		          <td class="text-right rp-amount" style="text-align: right !important; font-weight: bold;">{{ "%.0f"|format(related_party_row.get('amount') or 0.0) }}</td>
 		        </tr>
 		        {% endfor %}

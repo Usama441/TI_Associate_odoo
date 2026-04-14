@@ -15,15 +15,11 @@ def _next_run_at(target_time):
     return datetime.combine(now.date() + timedelta(days=1), target_time)
 
 
-def post_init_setup(cr, registry):
+def post_init_setup(env):
     """
     Post-init hook to create VAT threshold records for existing companies.
     This ensures all existing companies have a VAT threshold record after module install.
     """
-    from odoo import api, SUPERUSER_ID
-    
-    env = api.Environment(cr, SUPERUSER_ID, {})
-    
     # Get all companies
     companies = env['res.company'].search([])
     

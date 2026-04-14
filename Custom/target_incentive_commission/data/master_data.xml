@@ -1,0 +1,239 @@
+<odoo noupdate="1">
+    <record id="category_sr_manager" model="incentive.employee.category">
+        <field name="name">Sr. Managers &amp; Above</field>
+        <field name="code">SR_MANAGER</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="category_team" model="incentive.employee.category">
+        <field name="name">Team</field>
+        <field name="code">TEAM</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="category_operational" model="incentive.employee.category">
+        <field name="name">Operational Staff</field>
+        <field name="code">OPS</field>
+        <field name="sequence">30</field>
+    </record>
+
+    <record id="segment_agency_commission" model="incentive.segment">
+        <field name="name">Agency Commissions</field>
+        <field name="code">AGENCY_COMM</field>
+        <field name="basis_type">commission_net</field>
+        <field name="use_receipt_exchange">1</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="segment_local_sales" model="incentive.segment">
+        <field name="name">Local Sales &amp; Services</field>
+        <field name="code">LOCAL_SALES</field>
+        <field name="basis_type">profit_excl_gst</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="segment_jet_lube" model="incentive.segment">
+        <field name="name">Jet Lube</field>
+        <field name="code">JET_LUBE</field>
+        <field name="basis_type">profit_excl_gst</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="segment_cp_team" model="incentive.segment">
+        <field name="name">CP Team (Operational Staff)</field>
+        <field name="code">CP_TEAM</field>
+        <field name="basis_type">gross_salary</field>
+        <field name="sequence">40</field>
+    </record>
+    <record id="segment_accounts_others" model="incentive.segment">
+        <field name="name">Accounts &amp; Others (Operational Staff)</field>
+        <field name="code">ACCOUNTS_OTHERS</field>
+        <field name="basis_type">gross_salary</field>
+        <field name="sequence">50</field>
+    </record>
+    <record id="segment_vallourec" model="incentive.segment">
+        <field name="name">Vallourec</field>
+        <field name="code">VALLOUREC</field>
+        <field name="basis_type">commission_flat</field>
+        <field name="use_receipt_exchange">1</field>
+        <field name="sequence">60</field>
+    </record>
+
+    <!-- Sr. Managers -->
+    <record id="policy_sr_agency" model="incentive.policy">
+        <field name="name">Sr. Managers - Agency Commissions</field>
+        <field name="category_id" ref="target_incentive_commission.category_sr_manager"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_agency_commission"/>
+        <field name="gp_minimum">15.0</field>
+        <field name="special_reward_percent">1.0</field>
+    </record>
+    <record id="policy_sr_agency_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_sr_agency"/>
+        <field name="name">85% to 99% = 3%</field>
+        <field name="achievement_from">85.0</field>
+        <field name="achievement_to">99.99</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">3.0</field>
+    </record>
+    <record id="policy_sr_agency_line_2" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_sr_agency"/>
+        <field name="name">100%+ = 4%</field>
+        <field name="achievement_from">100.0</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">4.0</field>
+    </record>
+
+    <record id="policy_sr_local" model="incentive.policy">
+        <field name="name">Sr. Managers - Local Sales &amp; Services</field>
+        <field name="category_id" ref="target_incentive_commission.category_sr_manager"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_local_sales"/>
+    </record>
+    <record id="policy_sr_local_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_sr_local"/>
+        <field name="name">85% to 99% = 6%</field>
+        <field name="achievement_from">85.0</field>
+        <field name="achievement_to">99.99</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">6.0</field>
+    </record>
+    <record id="policy_sr_local_line_2" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_sr_local"/>
+        <field name="name">100%+ = 9%</field>
+        <field name="achievement_from">100.0</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">9.0</field>
+    </record>
+
+    <record id="policy_sr_vallourec" model="incentive.policy">
+        <field name="name">Sr. Managers - Vallourec</field>
+        <field name="category_id" ref="target_incentive_commission.category_sr_manager"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_vallourec"/>
+    </record>
+    <record id="policy_sr_vallourec_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_sr_vallourec"/>
+        <field name="name">Any qualifying achievement = 3%</field>
+        <field name="achievement_from">0.0</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">3.0</field>
+    </record>
+
+    <!-- Team -->
+    <record id="policy_team_agency" model="incentive.policy">
+        <field name="name">Team - Agency Commissions</field>
+        <field name="category_id" ref="target_incentive_commission.category_team"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_agency_commission"/>
+    </record>
+    <record id="policy_team_agency_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_agency"/>
+        <field name="name">85% to 99% = 2.5%</field>
+        <field name="achievement_from">85.0</field>
+        <field name="achievement_to">99.99</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">2.5</field>
+    </record>
+    <record id="policy_team_agency_line_2" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_agency"/>
+        <field name="name">100% to 114% = 3%</field>
+        <field name="achievement_from">100.0</field>
+        <field name="achievement_to">114.99</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">3.0</field>
+    </record>
+    <record id="policy_team_agency_line_3" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_agency"/>
+        <field name="name">115%+ = 3.5%</field>
+        <field name="achievement_from">115.0</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">3.5</field>
+    </record>
+
+    <record id="policy_team_local" model="incentive.policy">
+        <field name="name">Team - Local Sales &amp; Services</field>
+        <field name="category_id" ref="target_incentive_commission.category_team"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_local_sales"/>
+    </record>
+    <record id="policy_team_local_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_local"/>
+        <field name="name">85% to 99% = 4%</field>
+        <field name="achievement_from">85.0</field>
+        <field name="achievement_to">99.99</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">4.0</field>
+    </record>
+    <record id="policy_team_local_line_2" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_local"/>
+        <field name="name">100% to 114% = 5%</field>
+        <field name="achievement_from">100.0</field>
+        <field name="achievement_to">114.99</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">5.0</field>
+    </record>
+    <record id="policy_team_local_line_3" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_local"/>
+        <field name="name">115%+ = 6%</field>
+        <field name="achievement_from">115.0</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">6.0</field>
+    </record>
+
+    <record id="policy_team_jet_lube" model="incentive.policy">
+        <field name="name">Team - Jet Lube</field>
+        <field name="category_id" ref="target_incentive_commission.category_team"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_jet_lube"/>
+    </record>
+    <record id="policy_team_jet_lube_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_jet_lube"/>
+        <field name="name">85% to 99% = 1.5%</field>
+        <field name="achievement_from">85.0</field>
+        <field name="achievement_to">99.99</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">1.5</field>
+    </record>
+    <record id="policy_team_jet_lube_line_2" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_team_jet_lube"/>
+        <field name="name">100%+ = 2%</field>
+        <field name="achievement_from">100.0</field>
+        <field name="calculation_type">percent</field>
+        <field name="percentage">2.0</field>
+    </record>
+
+    <!-- Operational -->
+    <record id="policy_ops_cp" model="incentive.policy">
+        <field name="name">Operational Staff - CP Team</field>
+        <field name="category_id" ref="target_incentive_commission.category_operational"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_cp_team"/>
+        <field name="allow_gp_exception">0</field>
+    </record>
+    <record id="policy_ops_cp_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_ops_cp"/>
+        <field name="name">85% to 99% = 1.5 Salary</field>
+        <field name="achievement_from">85.0</field>
+        <field name="achievement_to">99.99</field>
+        <field name="calculation_type">salary_multiplier</field>
+        <field name="salary_multiplier">1.5</field>
+    </record>
+    <record id="policy_ops_cp_line_2" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_ops_cp"/>
+        <field name="name">100%+ = 2 Salary</field>
+        <field name="achievement_from">100.0</field>
+        <field name="calculation_type">salary_multiplier</field>
+        <field name="salary_multiplier">2.0</field>
+    </record>
+
+    <record id="policy_ops_accounts" model="incentive.policy">
+        <field name="name">Operational Staff - Accounts &amp; Others</field>
+        <field name="category_id" ref="target_incentive_commission.category_operational"/>
+        <field name="segment_id" ref="target_incentive_commission.segment_accounts_others"/>
+        <field name="allow_gp_exception">0</field>
+    </record>
+    <record id="policy_ops_accounts_line_1" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_ops_accounts"/>
+        <field name="name">85% to 99% = 1.5 Salary</field>
+        <field name="achievement_from">85.0</field>
+        <field name="achievement_to">99.99</field>
+        <field name="calculation_type">salary_multiplier</field>
+        <field name="salary_multiplier">1.5</field>
+    </record>
+    <record id="policy_ops_accounts_line_2" model="incentive.policy.line">
+        <field name="policy_id" ref="target_incentive_commission.policy_ops_accounts"/>
+        <field name="name">100%+ = 2 Salary</field>
+        <field name="achievement_from">100.0</field>
+        <field name="calculation_type">salary_multiplier</field>
+        <field name="salary_multiplier">2.0</field>
+    </record>
+</odoo>

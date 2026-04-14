@@ -27,6 +27,7 @@ class AccountBankRecodeWizard(models.TransientModel):
         [
             ('account', 'Account'),
             ('label', 'Label'),
+            ('unreconcile', 'Unreconcile'),
         ],
         string='Update',
         default='account',
@@ -345,6 +346,76 @@ class AccountBankRecodeWizard(models.TransientModel):
                 new=change['new_label'],
             ))
 
+    def _message_unreconcile_changes(self, unreconcile_changes):
+        """Post chatter messages for unreconcile operations."""
+        timestamp = fields.Datetime.to_string(fields.Datetime.context_timestamp(self, fields.Datetime.now()))
+        statement_lines = self.env['account.bank.statement.line'].browse(list(unreconcile_changes.keys()))
+        for statement_line in statement_lines:
+            change = unreconcile_changes[statement_line.id]
+            statement_line.message_post(body=_(
+                'Unreconciled by %(user)s on %(date)s\n'
+                'Previous account: %(old_account)s\n'
+                'Moved to suspense account: %(suspense_account)s',
+                user=self.env.user.display_name,
+                date=timestamp,
+                old_account=change['old_account'],
+                suspense_account=change['suspense_account'],
+            ))
+
+    def _apply_unreconcile_changes(self, statement_lines):
+        """Unreconcile transactions by moving counterpart lines back to suspense account."""
+        unreconcile_changes = {}
+        moves_to_draft = self.env['account.move']
+
+        for statement_line in statement_lines:
+            liquidity_lines, suspense_lines, other_lines = statement_line._seek_for_lines()
+
+            # Skip if no counterpart lines (nothing to unreconcile)
+            if not other_lines:
+                continue
+
+            # Get the journal's suspense account
+            suspense_account = statement_line.journal_id.suspense_account_id
+            if not suspense_account:
+                raise UserError(_(
+                    'Journal %(journal)s does not have a suspense account configured.',
+                    journal=statement_line.journal_id.display_name,
+                ))
+
+            # Collect moves to draft
+            moves_to_draft |= other_lines.move_id
+
+            # Store change info for chatter
+            unreconcile_changes[statement_line.id] = {
+                'old_account': ', '.join(other_lines.account_id.mapped('display_name')),
+                'suspense_account': suspense_account.display_name,
+            }
+
+        if not unreconcile_changes:
+            raise UserError(_('Nothing to unreconcile. No counterpart accounts found on the selected transactions.'))
+
+        # Move posted moves to draft
+        posted_moves = moves_to_draft.filtered(lambda move: move.state == 'posted')
+        if posted_moves:
+            posted_moves.button_draft()
+
+        # Move counterpart lines to suspense account
+        for statement_line in statement_lines:
+            liquidity_lines, suspense_lines, other_lines = statement_line._seek_for_lines()
+            suspense_account = statement_line.journal_id.suspense_account_id
+
+            for move_line in other_lines:
+                move_line.with_context(skip_readonly_check=True).write({
+                    'account_id': suspense_account.id,
+                })
+
+        # Re-post moves that were posted
+        if posted_moves:
+            posted_moves.action_post()
+
+        # Post chatter messages
+        self._message_unreconcile_changes(unreconcile_changes)
+
     def action_recode(self):
         self.ensure_one()
 
@@ -352,20 +423,28 @@ class AccountBankRecodeWizard(models.TransientModel):
             raise UserError(_('No transactions were selected.'))
         if len(self.statement_line_ids.company_id) > 1:
             raise UserError(_('Please select transactions from a single company.'))
-        statement_lines = self._get_applicable_statement_lines()
-        if not statement_lines:
-            raise UserError(_(
-                'No %(state)s transactions are available in the current selection.',
-                state=self._get_required_state_label(),
-            ))
 
-        if self.recode_target == 'account':
-            if self.transaction_state == 'reconciled':
-                self._apply_reconciled_account_changes(statement_lines)
-            else:
-                self._apply_unreconciled_account_changes(statement_lines)
+        # For unreconcile, only reconciled transactions are valid
+        if self.recode_target == 'unreconcile':
+            statement_lines = self.statement_line_ids.filtered('is_reconciled')
+            if not statement_lines:
+                raise UserError(_('No reconciled transactions are available in the current selection.'))
+            self._apply_unreconcile_changes(statement_lines)
         else:
-            self._apply_label_changes(statement_lines)
+            statement_lines = self._get_applicable_statement_lines()
+            if not statement_lines:
+                raise UserError(_(
+                    'No %(state)s transactions are available in the current selection.',
+                    state=self._get_required_state_label(),
+                ))
+
+            if self.recode_target == 'account':
+                if self.transaction_state == 'reconciled':
+                    self._apply_reconciled_account_changes(statement_lines)
+                else:
+                    self._apply_unreconciled_account_changes(statement_lines)
+            else:
+                self._apply_label_changes(statement_lines)
 
         return {'type': 'ir.actions.act_window_close'}
 

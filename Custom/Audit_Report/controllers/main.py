@@ -566,6 +566,21 @@ class AuditReportController(http.Controller):
     def view_report_pdf(self, report_id, **kwargs):
         route_started = time.perf_counter()
         report = request.env['audit.report'].browse(report_id)
+        try:
+            report._validate_emphasis_options()
+        except ValidationError as e:
+            summary, issues = self._extract_error_summary_and_issues(
+                e,
+                'Audit report validation failed.',
+            )
+            return self._render_editor_error_response(
+                'Audit Report Validation Error',
+                summary,
+                issues,
+                back_url=f'/web#id={report.id}&model=audit.report&view_type=form',
+                status=400,
+            )
+
         report_data_started = time.perf_counter()
         report_data = report._get_report_data()
         report_data_elapsed_ms = (time.perf_counter() - report_data_started) * 1000.0

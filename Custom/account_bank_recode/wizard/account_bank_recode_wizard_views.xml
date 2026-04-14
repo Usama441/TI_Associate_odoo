@@ -23,7 +23,7 @@
                         </div>
                         <group string="Recode Options" col="2">
                             <group>
-                                <field name="transaction_state" widget="radio"/>
+                                <field name="transaction_state" widget="radio" invisible="recode_target == 'unreconcile'"/>
                                 <field name="recode_target" widget="radio"/>
                             </group>
                             <group>
@@ -45,6 +45,9 @@
                                 />
                             </group>
                         </group>
+                        <div class="alert alert-info" role="alert" invisible="recode_target != 'unreconcile'">
+                            <strong>Unreconcile:</strong> This will remove the reconciliation and move counterpart journal items back to the suspense account. The transactions will need to be reconciled again.
+                        </div>
                         <separator
                             string="Per-Line Account Mapping"
                             invisible="recode_target != 'account' or transaction_state != 'reconciled' or mode != 'per_line'"

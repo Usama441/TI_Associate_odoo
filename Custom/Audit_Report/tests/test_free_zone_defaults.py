@@ -20,6 +20,10 @@ class TestAuditReportFreeZoneDefaults(TransactionCase):
             'audit_period_category': 'normal_1y',
             'signature_date_mode': 'today',
             'use_previous_settings': False,
+            'company_free_zone': 'Meydan Free Zone',
+            'company_license_number': 'LIC-001',
+            'trade_license_activities': 'Consulting services',
+            'incorporation_date': fields.Date.to_date('2020-01-01'),
         }
         values.update(overrides)
         return self.env['audit.report'].create(values)
@@ -59,24 +63,70 @@ class TestAuditReportFreeZoneDefaults(TransactionCase):
                 )
 
     def test_dmcc_companies_require_portal_account_before_render(self):
-        wizard = self._create_wizard()
+        wizard = self._create_wizard(signature_include_1=True)
         wizard.company_free_zone = 'Dubai Multi Commodities Centre Free Zone'
         wizard.portal_account_no = False
 
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(ValidationError, 'Portal Account'):
             wizard._validate_emphasis_options()
 
     def test_first_shareholder_signatory_is_required(self):
         wizard = self._create_wizard(signature_include_1=False)
-        wizard.shareholder_1 = 'Primary Shareholder'
 
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(ValidationError, 'SIGNATORY REQUIRED'):
+            wizard._validate_emphasis_options()
+
+    def test_two_year_reports_require_soce_label_date(self):
+        wizard = self._create_wizard(
+            audit_period_category='normal_2y',
+            signature_include_1=True,
+            soce_prior_opening_label_date=False,
+        )
+
+        with self.assertRaisesRegex(ValidationError, 'SOCE FIRST BALANCE DATE REQUIRED'):
+            wizard._validate_emphasis_options()
+
+    def test_company_free_zone_is_required_before_render(self):
+        wizard = self._create_wizard(
+            signature_include_1=True,
+            company_free_zone=False,
+        )
+
+        with self.assertRaisesRegex(ValidationError, 'FREE ZONE REQUIRED'):
+            wizard._validate_emphasis_options()
+
+    def test_company_license_number_is_required_before_render(self):
+        wizard = self._create_wizard(
+            signature_include_1=True,
+            company_license_number=False,
+        )
+
+        with self.assertRaisesRegex(ValidationError, 'COMPANY LICENSE NUMBER REQUIRED'):
+            wizard._validate_emphasis_options()
+
+    def test_trade_license_details_are_required_before_render(self):
+        wizard = self._create_wizard(
+            signature_include_1=True,
+            trade_license_activities=False,
+        )
+
+        with self.assertRaisesRegex(ValidationError, 'TRADE LICENSE NUMBER REQUIRED'):
+            wizard._validate_emphasis_options()
+
+    def test_corporate_incorporation_details_are_required_before_render(self):
+        wizard = self._create_wizard(
+            signature_include_1=True,
+            incorporation_date=False,
+        )
+
+        with self.assertRaisesRegex(ValidationError, 'CORPORATE INCORPORATION NUMBER REQUIRED'):
             wizard._validate_emphasis_options()
 
     def test_owner_current_account_zero_does_not_change_share_capital_status_on_validate(self):
         wizard = self._create_wizard(
             signature_include_1=True,
             share_capital_paid_status='unpaid',
+            nationality_1='Pakistani',
         )
         wizard.shareholder_1 = 'Primary Shareholder'
 

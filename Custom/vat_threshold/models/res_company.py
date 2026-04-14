@@ -5,7 +5,7 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
-
+#iansdsajdfaskjdfagkjf
 class ResCompany(models.Model):
     _inherit = 'res.company'
 
