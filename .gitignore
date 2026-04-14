@@ -56,6 +56,7 @@ package.json
 # Exclude all folders except Custom
 /addons/
 /custom_addons/
+/Custom/account_blank_recod/
 /debian/
 /doc/
 /odoo/
@@ -72,4 +73,3 @@ ruff.toml
 SECURITY.md
 setup.cfg
 setup.py
-/custom/vat_threshold/
